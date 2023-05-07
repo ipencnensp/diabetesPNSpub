@@ -1,0 +1,1505 @@
+---
+title: "Reprodução Artigo Prevalência 2013 vs 2019"
+author: "Mario O. de Menezes"
+date: '2022-04-29'
+output:
+  html_document: 
+    toc: yes
+    toc_float: yes
+    theme: cerulean
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, message = FALSE, warning = FALSE)
+flextable::set_flextable_defaults(na_str = " ", decimal.mark = ",", big.mark = ".")
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(survey)
+library(srvyr)
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(tidyr)
+library(janitor)
+library(pander)
+library(crosstable)
+library(flextable)
+library(gt)
+library(gtsummary)
+library(rio)
+```
+
+
+# PNS 2013
+
+
+## Using the new PNS 2013 - IBGE com PNSIBGE pkg
+
+
+```{r echo=FALSE, include=FALSE}
+options("survey.multicore" = TRUE)
+```
+
+```{r lendopns2013}
+# usando a biblioteca rio
+pns2013.1 <- import("data/PNSIBGE_Rpkg/pns2013microdata_get_pns20230505.csv")
+```
+
+
+Em 24 de novembro de 2022 mudei a base e passei a usar a base recuperada através do pacote `PNSIBGE`; isso porque na página do IBGE há um registro de todas as alterações e suas respectivas datas, permitindo maior reprodutibilidade dos resultados.
+
+
+
+```{r pns2013, echo = TRUE}
+
+pns2013.1 <- pns2013.1 %>% 
+  filter(M001=="1") %>% 
+  filter(!is.na(V0029))
+
+
+#Estados - UFs
+pns2013.1 <- pns2013.1 %>% rename(UF=V0001)
+pns2013.1$UF<-factor(pns2013.1$UF, levels=c(11,12,13,14,15,16,17,21,22,23,24,25,26,27,28,29,31,32,33,35,41,42,43,50,51,52,53), label=c("Rondonia","Acre","Amazonas","Roraima","Para","Amapa","Tocantins","Maranhao","Piaui","Ceara",
+                                        "Rio Grande do Norte","Paraiba","Pernambuco","Alagoas","Sergipe","Bahia",
+                                        "Minas Gerais","Espirito Santo","Rio de Janeiro","Sao Paulo",
+                                        "Parana","Santa Catarina","Rio Grande do Sul", 
+                                        "Mato Grosso do Sul","Mato Grosso","Goias","Distrito Federal"))
+#Grandes Regiões
+pns2013.1 <- pns2013.1 %>% 
+  mutate(Regiao = fct_collapse(UF, 
+                `1 Norte` = c("Rondonia","Acre","Amazonas","Roraima","Para", "Amapa","Tocantins"),
+                `2 Nordeste` = c("Maranhao", "Piaui", "Ceara", "Rio Grande do Norte", "Paraiba","Pernambuco", "Alagoas","Sergipe","Bahia"),
+                `3 Sudeste` = c("Minas Gerais", "Espirito Santo","Rio de Janeiro", "Sao Paulo"), 
+                `4 Sul` = c("Parana", "Santa Catarina", "Rio Grande do Sul"),
+                `5 Centro-Oeste`= c("Mato Grosso do Sul","Mato Grosso", "Goias", "Distrito Federal")))
+#Capital
+pns2013.1<- pns2013.1 %>% mutate(Capital= fct_collapse(UF,
+                                        `Porto Velho`= "Rondonia", 
+                                        `Boa Vista`= "Roraima",              
+                                        `Rio Branco `= "Acre", 
+                                        `Manaus` = "Amazonas",
+                                        `Boa Vista`= "Roraima",
+                                        `Belem` = "Para" ,
+                                        `Macapa`= "Amapa",
+                                        `Palmas` = "Tocantins",
+                                        `Sao Luis` = "Maranhao",
+                                        `Teresina`= "Piaui" ,
+                                        `Fortaleza`= "Ceara",
+                                        `Natal`= "Rio Grande do Norte",
+                                        `Joao Pessoa`= "Paraiba",
+                                        `Recife`= "Pernambuco",
+                                        `Maceio`= "Alagoas",
+                                        `Aracaju`= "Sergipe",
+                                        `Salvador`= "Bahia",
+                                        `Belo Horizonte`= "Minas Gerais",
+                                        `Vitoria`= "Espirito Santo",
+                                        `Rio de Janeiro`= "Rio de Janeiro",
+                                        `Sao Paulo`= "Sao Paulo",
+                                        `Curitiba`= "Parana",
+                                        `Florianopolis`= "Santa Catarina",
+                                        `Porto Alegre`= "Rio Grande do Sul",
+                                        `Campo Grande`=  "Mato Grosso do Sul",
+                                        `Cuiaba`= "Mato Grosso",
+                                        `Goiania` = "Goias",
+                                        `Brasilia`= "Distrito Federal"))
+pns2013.1 <- rename_with(pns2013.1,tolower)
+pns2013.1 <- pns2013.1 %>%
+  mutate(imc = w00103/(w00203/100*w00203/100)) %>%
+  mutate(imcclass2 = case_when(imc < 25 ~ "Low/Normal (<25)",
+                               imc >= 25.0 & imc < 30.0 ~ "Overweight (25-29.9)",
+                               imc >= 30.0 ~ "Obesity (>30)",
+                               TRUE ~ "Missing Data"
+        ))
+pns2013.1$imcclass2 <- ordered(pns2013.1$imcclass2,
+                               levels = c("Low/Normal (<25)", "Overweight (25-29.9)", "Obesity (>30)", "Missing Data"))
+
+pns2013.1 <- pns2013.1 %>%
+  mutate(idade = as.numeric(c008)) %>%
+  mutate(fxetaria2 = case_when(idade >= 18.0 & idade < 25.0 ~ "18-24",
+                               idade >= 25.0 & idade < 35.0 ~ "25-34",
+                               idade >= 35.0 & idade < 45.0 ~ "35-44",
+                               idade >= 45.0 & idade < 55.0 ~ "45-54",
+                               idade >= 55.0 & idade < 65.0 ~ "55-64",
+                               idade >= 65.0 ~ "65+")) %>%
+  mutate(diabetes = case_when(q030 == "1" ~ 1, #"Yes",
+                               q030 == "2" ~ 2, #"Pregnancy",
+                               q030 == "3" ~ 3, #"No",
+                               q030 == " " ~ 0, #"Not Applicable",
+                               TRUE ~ 4, #"Missing"
+                               ))
+
+pns2013.1$fxetaria2 <- ordered(pns2013.1$fxetaria2, 
+            levels = c("18-24", "25-34", "35-44", "45-54", "55-64", "65+"))
+
+
+pns2013.1 <- pns2013.1 %>%
+  mutate(d009s = as.character(d009)) %>%
+  mutate(fx_esco = case_when( (is.na(d009s) | d001 == 0) | # ~ "0",
+                            d009s == "1" | d009s == "2" | 
+                              d009s == "3" | d009s == "4" ~ "IncElem", # elementar incompleto 
+                             d009s == "5" | 
+                              d009s == "6"  ~ "CompElem", # elementar completo
+                            d009s == "7" | d009s == "8" | 
+                              d009s == "9" ~ "CompHiSc", # ensino médio completo
+                            d009s == "10" | d009s == "11" | 
+                              d009s == "12" ~ "CompHigher" )) # ensino superior completo
+
+pns2013.1$fx_esco <- ordered(pns2013.1$fx_esco,
+            levels = c("IncElem","CompElem","CompHiSc","CompHigher"))
+
+# depois de quebrar a cabeça com a faixa de escolaridade, que não batia com resultados do artigo Evolução da Diabetes ...
+# descobri uma variável derivada, criada pelo IBGE, para indicar o nível de escolaridade dentro do sistema de 9 anos.
+# é a VDD004A; portanto vou recodificar a fx_esc para usar essa variável.
+# os níveis são:
+# 1	Sem instrução
+# 2	Fundamental incompleto ou equivalente
+# 3	Fundamental completo ou equivalente
+# 4	Médio incompleto ou equivalente
+# 5	Médio completo ou equivalente
+# 6	Superior incompleto ou equivalente
+# 7	Superior completo 
+# 	Não aplicável
+
+pns2013.1 <- pns2013.1 %>%
+  mutate(niv_esc  = as.character(vdd004a)) %>%
+  mutate(fx_esc = case_when(is.na(niv_esc) | niv_esc == "1" | niv_esc == "2" ~ "IncElem",
+                            niv_esc == "3" | niv_esc == "4" ~ "CompElem", 
+                            niv_esc == "5" | niv_esc == "6" ~ "CompHiSc",
+                            niv_esc == "7" ~ "CompHigher"))
+
+pns2013.1$fx_esc <- ordered(pns2013.1$fx_esc,
+            levels = c("IncElem","CompElem","CompHiSc","CompHigher"))
+
+
+
+pns2013.1 <- pns2013.1 %>%
+  mutate(RaceSkinColor = case_when(c009 == 1 ~ "White",
+                                   c009 == 2 ~ "Black",
+                                   c009 == 4 ~ "Mixed-race",
+                                   c009 == 3 ~ "Asian",
+                                   c009 == 5 ~ "Indigenous",
+                                   TRUE ~ "Ignored"),
+         )
+
+pns2013.1$RaceSkinColor <- ordered(pns2013.1$RaceSkinColor,
+          levels = c("White","Black","Mixed-race","Asian","Indigenous","Ignored"))
+
+pns2013.1 <- pns2013.1 %>%
+  mutate(gender = case_when(c006 == 1 ~ "Men",
+                            c006 == 2 ~ "Women"))  %>%
+  mutate(Hypertension = case_when(q002 == 1 ~ "Yes",
+                                  TRUE ~ "No"))
+pns2013.1$Hypertension <- ordered(pns2013.1$Hypertension,levels = c("Yes","No"))
+
+```
+
+
+
+### PNS 2013 - Tabela com todos os indicadores
+
+```{r compltablecross, tab.cap = "PNS 2013 sociodemographic and social indicators"}
+compltabcross13 <- pns2013.1 %>% 
+  select(`Age(years)`=fxetaria2,`Race/Skin color`=RaceSkinColor,`Education level`=fx_esc, `Body mass index(kg/m²)`=imcclass2, gender,Hypertension) %>%
+crosstable( 
+           cols = c(`Age(years)`,`Race/Skin color`,`Education level`, `Body mass index(kg/m²)`, "Hypertension"), 
+           by = gender, total = "both", 
+           percent_pattern="{n} ({p_col})", percent_digits = 1)
+compltabcross13 %>% 
+  crosstable::as_flextable() %>% autofit()
+```
+
+
+
+
+
+### PNS 2013 - Age
+
+
+```{r fxetaria, include = FALSE, tab.cap = "PNS 2013 - Age" }
+tbl_fxetaria <- pns2013.1 %>% 
+  tabyl(fxetaria2, gender, show_missing_levels = FALSE,) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+  adorn_ns(,,,position="front",Men:Total ) %>%
+ select(`Age(years)`=fxetaria2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_fxetaria %>%
+  flextable()
+```
+
+```{r tblfxetaria}
+tbl_fxetaria <- rename(tbl_fxetaria, caract = `Age(years)`)
+```
+
+
+### PNS 2013 - Body Mass Index
+
+```{r imcclass, include = FALSE, tab.cap = "PNS 2013 - Body Mass Index"}
+tbl_imcclass <- pns2013.1 %>% 
+#  filter(imcclass2 != "Nenhum") %>%
+  tabyl(imcclass2, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+ adorn_ns(,,,position="front",Men:Total ) %>%
+ select(`Body mass index(kg/m²)`=imcclass2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_imcclass %>%
+  flextable()
+```
+
+```{r tblimcc}
+tbl_imcclass <- rename(tbl_imcclass, caract = `Body mass index(kg/m²)`)
+```
+
+
+
+### PNS 2013 - Education 
+
+
+```{r fxesc, include = FALSE, tab.cap = "PNS 2013 - Education"}
+tbl_fxesc <- pns2013.1 %>% 
+  tabyl(fx_esc, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+  adorn_ns(,,,position="front",Men:Total ) %>%
+  select(`Education level`=fx_esc, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_fxesc %>%
+  flextable()
+```
+
+```{r tblfxesc}
+tbl_fxesc <- rename(tbl_fxesc, caract = `Education level`)
+```
+
+
+
+### PNS 2013 - Race Skin Color
+
+
+
+```{r raceskin, include = FALSE, tab.cap = "PNS 2013 - Race Skin Color"}
+tbl_raceskin <- pns2013.1 %>% 
+  tabyl(RaceSkinColor, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+  adorn_ns(,,,position="front",Men:Total ) %>%
+  select(`Race/Skin color`=RaceSkinColor, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_raceskin %>%
+  flextable()
+```
+
+```{r}
+tbl_raceskin <- rename(tbl_raceskin, caract = `Race/Skin color`)
+```
+
+
+
+
+
+### PNS 2013 - Hypertension
+
+
+```{r Hypertension,  include = FALSE, tab.cap = "PNS 2013 - Hypertension"}
+tbl_hyperten <- pns2013.1 %>%
+  tabyl(Hypertension, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+  adorn_ns(,,,position="front",Men:Total ) %>%
+  select(Hypertension, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_hyperten %>%
+  flextable()
+```
+
+```{r}
+tbl_hyperten <- rename(tbl_hyperten, caract = Hypertension)
+```
+
+
+```{r tblcaract}
+tbls_caract <- rbind(tbl_fxetaria, tbl_raceskin, tbl_fxesc, tbl_imcclass, tbl_hyperten)
+```
+
+```{r tblgt, include = FALSE}
+tbls_caract %>% 
+  rename(` `=caract) %>%
+  gt() %>%
+ tab_header(
+    title = "Sociodemographic and clinical characteristics of adult participants in the Brazilian National Health Survey, 2013.",
+  ) %>%
+    tab_row_group(
+    label = "Hypertension",
+    rows = c(25:27)
+  ) %>% 
+  tab_row_group(
+    label = "Body Mass Index",
+    rows = c(20:24)
+  ) %>%
+  tab_row_group(
+    label = "Education level",
+    rows = c(15:19)
+  ) %>%
+  tab_row_group(
+    label = "Race/Skin Color",
+    rows = c(8:14)
+  ) %>%
+  tab_row_group(
+    label = "Age (years)",
+    rows = c(1:7)
+  )
+
+ 
+
+```
+
+
+
+
+
+
+
+
+## Construindo o objeto _survey_ PNS 2013
+
+```{r pnssrv}
+pns2013.1$one <- 1
+pes_sel_des <-
+    svydesign(
+     id = ~ upa_pns ,
+     strata = ~ v0024 ,
+     data = as.data.frame(pns2013.1) ,
+     weights = ~ v0029 ,
+     nest = TRUE
+)
+post_pop <- unique( pns2013.1[ c( 'v00293' , 'v00292' ) ] )
+names( post_pop ) <- c( "v00293" , "Freq" )
+# post-stratified design
+pns_design13 <- survey::postStratify( pes_sel_des , ~v00293 , post_pop )
+```
+
+```{r}
+rm(pes_sel_des)
+```
+
+
+```{r pnsdsgn}
+pns_design_srvyr13 <- as_survey_design(pns_design13)
+```
+
+
+Conferindo população total da pesquisa.
+```{r   include = FALSE}
+todos <- svytable(~one, pns_design_srvyr13)
+(todos <- as.numeric(todos))
+```
+
+### PNS 2013 - Tabulações Ponderadas
+
+
+
+
+```{r}
+# É possível obter os valores ponderados assim
+total_genders <- pns2013.1 %>%
+  count(gender, wt = v00291)
+total_homens <- as.integer(total_genders[1,2])
+total_mulheres <- as.integer(total_genders[2,2])
+```
+
+
+
+```{r eval = FALSE}
+svytable(~one + gender, pns_design_srvyr13)
+```
+
+```{r todosfxet2, include=FALSE, tab.cap = "PNS 2013 - Weighted Age (total)"}
+todos_fxetaria2 <- as.data.frame(svyby(~one, ~fxetaria2, pns_design_srvyr13, svytotal, vartype = "ci")) %>%
+  rename(total_fx=one,fx_ci_l=ci_l,fx_ci_u=ci_u)
+todos_fxetaria2 %>% flextable()
+```
+
+
+```{r homensfxet, include=FALSE, tab.cap = "PNS 2013 - Men Ages"}
+homens_fxetaria2 <-  as.data.frame(svyby(~one, ~fxetaria2, subset(pns_design_srvyr13, gender == "Men" ), svytotal, vartype = "ci")) %>%
+  rename(total_fx=one,fx_ci_l=ci_l,fx_ci_u=ci_u)
+homens_fxetaria2 %>% flextable()
+```
+
+```{r mulfxet, include = FALSE, tab.cap = "PNS 2013 - Women Ages"}
+mulheres_fxetaria2 <-  as.data.frame(svyby(~one, ~fxetaria2, subset(pns_design_srvyr13, gender == "Women" ), svytotal, vartype = "ci")) %>%
+  rename(total_fx=one,fx_ci_l=ci_l,fx_ci_u=ci_u)
+mulheres_fxetaria2 %>% flextable()
+```
+
+```{r todosfxesc13, include = FALSE}
+todos_fxesc13 <- as.data.frame(svyby(~one, ~fx_esc, pns_design_srvyr13, svytotal, vartype = "ci")) %>%
+  rename(total_fxesc = one, fxesc_ci_l = ci_l, fxesc_ci_u = ci_u)
+```
+
+```{r todosrace13, include = FALSE}
+todos_race13 <- as.data.frame(svyby(~one, ~RaceSkinColor, pns_design_srvyr13, svytotal, vartype = "ci")) %>%
+  rename(total_race = one, race_ci_l = ci_l, race_ci_u = ci_u)
+```
+
+```{r todoshyper13, include = FALSE}
+todos_hyper13 <- as.data.frame(svyby(~one, ~Hypertension, pns_design_srvyr13, svytotal, vartype = "ci")) %>%
+  rename(total_hyper = one, hyper_ci_l = ci_l, hyper_ci_u = ci_u)
+```
+
+
+
+### PNS 2013 - Diabetes
+
+```{r}
+com.diabetes.wt.df <- subset(pns_design_srvyr13, diabetes == 1 | diabetes == 2)
+com.diabetes.wt <- round(as.data.frame(svytotal(~diabetes, com.diabetes.wt.df))[1,1],0)
+```
+
+```{r diabetes2013, tab.cap = "PNS 2013 - Diabetes (all)"}
+diabetes2013 <- svyby(~one, ~diabetes, pns_design_srvyr13, svytotal, vartype = "ci", Ntotal = 100)
+total2013 <- sum(total_genders[,2])
+diabetes2013 <- diabetes2013 %>%
+  mutate(one_perc = one/total2013, ci_l_perc = ci_l/total2013, ci_u_perc = ci_u/total2013)
+diabetes2013 <- diabetes2013 %>% 
+  mutate(`(%)`=round(one_perc*100,1),ci_l_perc = round(ci_l_perc*100,1),
+         ci_u_perc = round(ci_u_perc*100,1),`%95CI`=paste0(ci_l_perc,"-",ci_u_perc),
+         diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         )) %>%
+  rename(n=one) %>%
+  mutate(n = round(n,0)) %>%
+  select(diabetes,n,`2013 (%)`=`(%)`,`2013 %95CI`=`%95CI`)
+diabetes2013 %>% adorn_totals() %>%
+  flextable(theme_fun = theme_booktabs) %>% autofit()
+```
+
+
+
+
+```{r diabmulheres}
+diabetes.mulheres2013 <- svyby(~one, ~diabetes, subset(pns_design_srvyr13, gender == "Women"), svytotal, vartype = "ci", Ntotal = 100)
+```
+
+```{r diabmulheres_b, tab.cap = "PNS 2013 - Women diabetes"}
+diabetes.mulheres2013 <- diabetes.mulheres2013 %>%
+  mutate(one_perc = one/total_mulheres, ci_l_perc = ci_l/total_mulheres, ci_u_perc = ci_u/total_mulheres)
+diabetes.mulheres2013 <- diabetes.mulheres2013 %>% 
+  mutate(`(%)`=round(one_perc*100,1),ci_l_perc = round(ci_l_perc*100,1),
+         ci_u_perc = round(ci_u_perc*100,1),`%95CI`=paste0(ci_l_perc,"-",ci_u_perc),
+         diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         )) %>%
+  rename(n=one) %>%
+  mutate(n = round(n,0)) %>%
+  select(diabetes,n,`2013 (%)`=`(%)`,`2013 %95CI`=`%95CI`)
+diabetes.mulheres2013 %>% adorn_totals() %>%
+  flextable(theme_fun = theme_booktabs) %>% autofit()
+```
+
+```{r diabhomens}
+diabetes.homens2013 <- svyby(~one, ~diabetes, subset(pns_design_srvyr13, gender == "Men"), svytotal, vartype = "ci", Ntotal = 100) %>%
+  mutate(one_perc = one/total_homens, ci_l_perc = ci_l/total_homens, ci_u_perc = ci_u/total_homens)
+```
+
+```{r diabhomens_tbl, tab.cap = "PNS 2013 - Men diabetes"}
+diabetes.homens2013 <- diabetes.homens2013 %>% 
+  mutate(`(%)`=round(one_perc*100,1),ci_l_perc = round(ci_l_perc*100,1),
+         ci_u_perc = round(ci_u_perc*100,1),`%95CI`=paste0(ci_l_perc,"-",ci_u_perc),
+         diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         )) %>%
+  rename(n=one) %>%
+  mutate(n = round(n,0)) %>%
+  select(diabetes,n,`2013 (%)`=`(%)`,`2013 %95CI`=`%95CI`)
+diabetes.homens2013 %>% adorn_totals() %>%
+  flextable(theme_fun = theme_booktabs) %>% autofit()
+```
+
+
+#### Diabetes por Faixa Etária
+
+```{r diabfxetaria, include = FALSE, tab.cap = "PNS 2013 - Diabetes by Age (all)"}
+diabetes.fxetaria <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(todos_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
+diabetes.fxetaria %>% flextable() %>% autofit()
+```
+
+
+
+
+
+
+
+```{r diabfxetmen, include = FALSE, tab.cap = "PNS 2013 - Men diabetes by age"}
+diabetes.fxetaria.men <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr13, diabetes == 1  & gender == "Men"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(homens_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
+diabetes.fxetaria.men %>% flextable() %>% autofit()
+```
+
+```{r diabfxetwomen, include = FALSE, tab.cap = "PNS 2013 - Women diabetes by age"}
+diabetes.fxetaria.women <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr13, (diabetes == 1) & gender == "Women"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(mulheres_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
+diabetes.fxetaria.women %>% flextable() %>% autofit()
+```
+
+
+
+#### Diabetes por IMC
+
+
+```{r todosimc2,  include = FALSE, include=FALSE, tab.cap = "PNS 2013 - Weighted BMI (total)"}
+todos_imcclass2 <- as.data.frame(svyby(~one, ~imcclass2, pns_design_srvyr13, svytotal, vartype = "ci", addNA = FALSE)) %>%
+  rename(total_imc=one,imc_ci_l=ci_l,imc_ci_u=ci_u)# %>%
+#  filter(imcclass2 != "Missing Data")
+todos_imcclass2  %>%
+  flextable()
+```
+
+
+```{r homensimc,  include = FALSE, include=FALSE, tab.cap = "PNS 2013 - Men BMI"}
+homens_imcclass2 <-  as.data.frame(svyby(~one, ~imcclass2, subset(pns_design_srvyr13, gender == "Men" ), svytotal, vartype = "ci", addNA = TRUE)) %>%
+  rename(total_imc=one,imc_ci_l=ci_l,imc_ci_u=ci_u)#  %>%
+#  filter(imcclass2 != "Missing Data")
+homens_imcclass2 %>% flextable()
+```
+
+```{r mulhimc,  include = FALSE, include=FALSE, tab.cap = "PNS 2013 - Women BMI"}
+mulheres_imcclass2 <-  as.data.frame(svyby(~one, ~imcclass2, subset(pns_design_srvyr13, gender == "Women" ), svytotal, vartype = "ci")) %>%
+  rename(total_imc=one,imc_ci_l=ci_l,imc_ci_u=ci_u)# %>%
+#  filter(imcclass2 != "Missing Data")
+mulheres_imcclass2 %>% flextable()
+```
+
+
+
+
+```{r diabimcclass,  include = FALSE, tab.cap = "PNS 2013 - Diabetes by Body Mass Index (all)"}
+# não vou considerar diabetes gestacional
+diabetes.imcclass <- svyby(~diabetes,~imcclass2,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_imcclass2,-imcclass2))  %>%
+  mutate(diab_perc = round(diabetes/total_imc*100,1), ci_l_perc = round(ci_l/imc_ci_l*100,1), ci_u_perc = round(ci_u/imc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc))   %>%
+  select(`Body mass index(kg/m²)`=imcclass2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
+diabetes.imcclass %>% flextable() %>% autofit()
+```
+
+
+
+```{r diabimcmen,  include = FALSE, tab.cap = "PNS 2013 - Men BMI by age"}
+diabetes.imcclass2.men <- svyby(~diabetes,~imcclass2,  subset(pns_design_srvyr13, diabetes == 1 & gender == "Men"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(homens_imcclass2,-imcclass2)) %>%
+  mutate(diab_perc = round(diabetes/total_imc*100,1), ci_l_perc = round(ci_l/imc_ci_l*100,1), ci_u_perc = round(ci_u/imc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Body mass index(kg/m²)`=imcclass2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
+diabetes.imcclass2.men %>% flextable() %>% autofit()
+```
+
+```{r diabimcwomen, include = FALSE, tab.cap = "PNS 2013 - Women BMI by age"}
+diabetes.imcclass2.women <- svyby(~diabetes,~imcclass2,  subset(pns_design_srvyr13, diabetes == 1  & gender == "Women"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(mulheres_imcclass2,-imcclass2)) %>%
+  mutate(diab_perc = round(diabetes/total_imc*100,1), ci_l_perc = round(ci_l/imc_ci_l*100,1), ci_u_perc = round(ci_u/imc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Body mass index(kg/m²)`=imcclass2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
+diabetes.imcclass2.women %>% flextable() %>% autofit()
+```
+
+#### Diabetes por Escolaridade
+
+```{r diabfxesc, include = FALSE, tab.cap = "PNS 2013 - Diabetes by Education (all)"}
+# não vou considerar diabetes gestacional
+diabetes.fxesc13 <- svyby(~diabetes,~fx_esc,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_fxesc13,-fx_esc))  %>%
+  mutate(fx_esc_perc = round(diabetes/total_fxesc*100,1), ci_l_perc = round(ci_l/fxesc_ci_l*100,1), ci_u_perc = round(ci_u/fxesc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc))   %>%
+  select(`Education`=fx_esc, n=diabetes, `2013 (%)`= fx_esc_perc,`2013 %95CI`=`%95CI`)
+diabetes.fxesc13 %>% flextable() %>% autofit()
+```
+
+
+
+#### Diabetes por Raça, Cor da Pele
+
+```{r diabrace13,  include = FALSE, tab.cap = "PNS 2013 - Diabetes by Race/Skin Color (all)"}
+# não vou considerar diabetes gestacional
+diabetes.race13 <- svyby(~diabetes,~RaceSkinColor,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_race13,-RaceSkinColor))  %>%
+  mutate(race_perc = round(diabetes/total_race*100,1), ci_l_perc = round(ci_l/race_ci_l*100,1), ci_u_perc = round(ci_u/race_ci_u*100,1))   %>% 
+  mutate(race_perc = if_else(RaceSkinColor == "Ignored",0,race_perc),
+         ci_l_perc = if_else(RaceSkinColor == "Ignored",0,ci_l_perc),
+         ci_u_perc = if_else(RaceSkinColor == "Ignored",0,ci_u_perc),
+         `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`RaceSkinColor`=RaceSkinColor, n=diabetes, `2013 (%)`= race_perc,`2013 %95CI`=`%95CI`)
+diabetes.race13 %>% flextable() %>% autofit()
+```
+
+
+#### Diabetes por Hipertensão
+
+```{r diabhyper13,  include = FALSE, tab.cap = "PNS 2013 - Diabetes by Hypertension (all)"}
+# não vou considerar diabetes gestacional
+diabetes.hyper13 <- svyby(~diabetes,~Hypertension,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_hyper13,-Hypertension))  %>%
+  mutate(hyper_perc = round(diabetes/total_hyper*100,1), ci_l_perc = round(ci_l/hyper_ci_l*100,1), ci_u_perc = round(ci_u/hyper_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc))   %>%
+  select(Hypertension, n=diabetes, `2013 (%)`= hyper_perc,`2013 %95CI`=`%95CI`)
+diabetes.hyper13 %>% flextable() %>% autofit()
+```
+
+
+
+
+### PNS 2013 - Juntando tudo em um data.frame 
+
+```{r diab2013}
+diabimc.df <- as.data.frame(diabetes.imcclass)
+diabimc.df$Classe <- "Body mass index(kg/m²)"
+diabfx.df <- as.data.frame(diabetes.fxetaria)
+diabfx.df$Classe <- "Age(years)"
+diabimc.df <- diabimc.df %>% rename(Nome =  `Body mass index(kg/m²)`, n2013 = n)
+diabfx.df <- diabfx.df %>% rename(Nome = `Age(years)`, n2013 = n)
+diabfx.df <- diabfx.df %>% mutate(Nome = as.character(Nome))
+diabimc.df <- diabimc.df %>% mutate(Nome = as.character(Nome))
+diabrsc13.df <- diabetes.race13 %>% 
+  rename(Nome = RaceSkinColor, n2013 = n) %>%
+  mutate(Nome = as.character(Nome), Classe = "RaceSkinColor")
+diabfxesc13.df <- diabetes.fxesc13 %>%
+  rename(Nome = Education, n2013 = n) %>%
+  mutate(Nome = as.character(Nome), Classe = "Education")
+diabhyp13.df <- diabetes.hyper13 %>%
+  rename(Nome = Hypertension, n2013 = n) %>%
+  mutate(Nome = as.character(Nome), Classe ="Hypertension")
+diab2013.df <- bind_rows(diabfx.df,diabrsc13.df,diabfxesc13.df,diabimc.df,diabhyp13.df)
+```
+
+```{r   include = FALSE}
+diab2013.df %>%  
+   gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing()
+```
+
+
+
+
+```{r}
+diabetes2013$Classe <-"Geral"
+diabetes2013 <- diabetes2013 %>%
+  rename(Nome = "diabetes", n2013 = n)
+diabetes.mulheres2013$Classe <- "Women"
+diabetes.mulheres2013 <- diabetes.mulheres2013 %>%
+  rename(Nome = "diabetes", n2013 = n)
+diabetes.homens2013$Classe <- "Men"
+diabetes.homens2013 <- diabetes.homens2013 %>%
+  rename(Nome = "diabetes", n2013 = n)
+diabetes2013_gt <- bind_rows(diabetes2013, diabetes.mulheres2013, diabetes.homens2013)
+```
+
+
+```{r eval = FALSE}
+saveRDS(diabetes2013_gt, file = "diabetes2013_gt_20230505.rds", compress = TRUE)
+```
+
+
+```{r   include = FALSE}
+diabetes2013_gt %>%
+  gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing()
+```
+
+
+# PNS 2019
+
+## Using the new PNS 2019 - IBGE com PNSIBGE pkg
+
+Em 24 de novembro de 2022 mudei a base e passei a usar a base recuperada através do pacote `PNSIBGE`; isso porque na página do IBGE há um registro de todas as alterações e suas respectivas datas, permitindo maior reprodutibilidade dos resultados.
+
+
+
+```{r lendopns2019}
+# usando a biblioteca rio
+pns2019.1 <- import("data/PNSIBGE_Rpkg/pns2019microdata_get_pns20230505.csv")
+```
+
+
+```{r pns2019}
+pns2019.1 <- pns2019.1 %>% 
+  filter(V0025A=="1") %>%
+  filter(!is.na(V0029))
+
+
+#summary(pns2019.1$peso_morador_selec)
+#Estados - UFs
+pns2019.1 <- pns2019.1 %>% rename(UF=V0001)
+pns2019.1$UF<-factor(pns2019.1$UF, levels=c(11,12,13,14,15,16,17,21,22,23,24,25,26,27,28,29,31,32,33,35,41,42,43,50,51,52,53), label=c("Rondonia","Acre","Amazonas","Roraima","Para","Amapa","Tocantins","Maranhao","Piaui","Ceara",
+                                        "Rio Grande do Norte","Paraiba","Pernambuco","Alagoas","Sergipe","Bahia",
+                                        "Minas Gerais","Espirito Santo","Rio de Janeiro","Sao Paulo",
+                                        "Parana","Santa Catarina","Rio Grande do Sul", 
+                                        "Mato Grosso do Sul","Mato Grosso","Goias","Distrito Federal"))
+#Grandes Regiões
+pns2019.1 <- pns2019.1 %>% 
+  mutate(Regiao = fct_collapse(UF, 
+                `1 Norte` = c("Rondonia","Acre","Amazonas","Roraima","Para", "Amapa","Tocantins"),
+                `2 Nordeste` = c("Maranhao", "Piaui", "Ceara", "Rio Grande do Norte", "Paraiba","Pernambuco", "Alagoas","Sergipe","Bahia"),
+                `3 Sudeste` = c("Minas Gerais", "Espirito Santo","Rio de Janeiro", "Sao Paulo"), 
+                `4 Sul` = c("Parana", "Santa Catarina", "Rio Grande do Sul"),
+                `5 Centro-Oeste`= c("Mato Grosso do Sul","Mato Grosso", "Goias", "Distrito Federal")))
+#Capital
+pns2019.1<- pns2019.1 %>% mutate(Capital= fct_collapse(UF,
+                                        `Porto Velho`= "Rondonia", 
+                                        `Boa Vista`= "Roraima",              
+                                        `Rio Branco `= "Acre", 
+                                        `Manaus` = "Amazonas",
+                                        `Boa Vista`= "Roraima",
+                                        `Belem` = "Para" ,
+                                        `Macapa`= "Amapa",
+                                        `Palmas` = "Tocantins",
+                                        `Sao Luis` = "Maranhao",
+                                        `Teresina`= "Piaui" ,
+                                        `Fortaleza`= "Ceara",
+                                        `Natal`= "Rio Grande do Norte",
+                                        `Joao Pessoa`= "Paraiba",
+                                        `Recife`= "Pernambuco",
+                                        `Maceio`= "Alagoas",
+                                        `Aracaju`= "Sergipe",
+                                        `Salvador`= "Bahia",
+                                        `Belo Horizonte`= "Minas Gerais",
+                                        `Vitoria`= "Espirito Santo",
+                                        `Rio de Janeiro`= "Rio de Janeiro",
+                                        `Sao Paulo`= "Sao Paulo",
+                                        `Curitiba`= "Parana",
+                                        `Florianopolis`= "Santa Catarina",
+                                        `Porto Alegre`= "Rio Grande do Sul",
+                                        `Campo Grande`=  "Mato Grosso do Sul",
+                                        `Cuiaba`= "Mato Grosso",
+                                        `Goiania` = "Goias",
+                                        `Brasilia`= "Distrito Federal"))
+# copiei os indicadores da Fiocruz para comparar os resultados
+
+#Q001P - Pressão arterial nunca aferida
+pns2019.1 <- pns2019.1 %>% mutate(Q001P = ifelse(Q00101 == 6,1,2))
+pns2019.1$Q001P<-factor(pns2019.1$Q001P, levels=c(1,2), labels=c("Sim","Não"))
+
+#Q003P - Exame de sangue para medir a glicemia nunca realizado
+pns2019.1 <- pns2019.1 %>% mutate(Q003P = ifelse(Q02901 == 6,1,2))
+pns2019.1$Q003P<-factor(pns2019.1$Q003P, levels=c(1,2), labels=c("Sim","Não"))
+
+# diabetes
+pns2019.1 <- pns2019.1 %>% mutate(Q004P = if_else(Q03002==1 & C006==2,2,
+                                          if_else(Q03001==1,1,2,missing=2),missing=2))                                         
+pns2019.1$Q004P<-factor(pns2019.1$Q004P, levels=c(1,2), labels=c("Sim","Não"))
+
+pns2019.1 <- rename_with(pns2019.1,tolower) %>% filter(c008>=18)
+```
+
+
+```{r pns2019_b}
+pns2019.1 <- pns2019.1 %>%
+  mutate(w00103 = as.numeric(w00103), w00203 = as.numeric(w00203), 
+         p00104 = as.numeric(p00104), p00404 = as.numeric(p00404)) %>%
+  mutate(imc = p00104/(p00404/100*p00404/100)) %>% #w00103/(w00203/100*w00203/100)) %>%
+  mutate(imcclass2 = case_when(imc < 25 ~ "Low/Normal (<25)",
+                               imc >= 25.0 & imc < 30.0 ~ "Overweight (25-29.9)",
+                               imc >= 30.0 ~ "Obesity (>30)",
+                               TRUE ~ "Missing Data"
+        ))
+pns2019.1$imcclass2 <- ordered(pns2019.1$imcclass2,
+                               levels = c("Low/Normal (<25)", "Overweight (25-29.9)", "Obesity (>30)", "Missing Data"))
+
+pns2019.1 <- pns2019.1 %>%
+  mutate(idade = as.numeric(c008)) %>%
+  mutate(fxetaria2 = case_when(idade >= 18.0 & idade < 25.0 ~ "18-24",
+                               idade >= 25.0 & idade < 35.0 ~ "25-34",
+                               idade >= 35.0 & idade < 45.0 ~ "35-44",
+                               idade >= 45.0 & idade < 55.0 ~ "45-54",
+                               idade >= 55.0 & idade < 65.0 ~ "55-64",
+                               idade >= 65.0 ~ "65+")) %>%
+  mutate(q03001 = as.character(q03001),
+        q03002 = as.character(q03002)) %>%
+  mutate(gender = case_when(c006 == 1 ~ "Men",
+                            c006 == 2 ~ "Women"))  %>%
+  mutate(diabetes = case_when(gender == "Women" & q03002 == "1" ~ 2, # Gravidez
+                               q03001 == "1" ~ 1, #"Yes",
+                               q03001 == "2" ~ 3, #"No",
+                               q03001 == "9" ~ 4, #ignorado
+                               TRUE ~ 4, #"Missing"
+                               )) 
+
+pns2019.1$fxetaria2 <- ordered(pns2019.1$fxetaria2, 
+            levels = c("18-24", "25-34", "35-44", "45-54", "55-64", "65+"))
+
+
+pns2019.1 <- pns2019.1 %>% 
+  mutate(d009s = as.character(d00901)) %>%
+  mutate(fx_esco = case_when(is.na(d009s) | d009s == "1" | d009s == "2" | d009s == "3" | 
+                               d009s == "4" | d009s == "5" | d009s == "99" ~ "IncElem", # elementar incompleto 
+                               d009s == "6" | d009s == "7" | d009s == "8" ~ "CompElem", # elementar completo
+                               d009s == "9" | d009s == "10" | d009s == "11" ~ "CompHiSc", # ensino médio
+                               d009s == "12" | d009s == "13" | d009s == "14" | 
+                               d009s == "15" ~ "CompHigher" ))
+  # mutate(fx_esc =  case_when(  d00901 == "01" | d00901 == "02" | d00901 == "03" | 
+  #                              d00901 == "05" | d00901 == "99" | is.na(d00901) ~ "IncElem", # ensino fund I
+  #                              d00901 == "06" | d00901 == "07" | d00901 == "08" ~ "CompElem", # ensino fund II
+  #                              d00901 == "09" | d00901 == "10" | d00901 == "11" ~ "CompHiSc", # ensino médio
+  #                              d00901 == "12" |  # ensino superior
+  #                              d00901 == "13" |  # especialização 360hr min
+  #                              d00901 == "14" |  # mestrado
+  #                              d00901 == "15" ~ "CompHigher" , #doutorado
+  #                              TRUE ~ "IncElem" )) # em branco, não aplicável vou jogar pra IncElem
+
+pns2019.1$fx_esco <- ordered(pns2019.1$fx_esco,
+            levels = c("IncElem","CompElem","CompHiSc","CompHigher"))
+
+# depois de quebrar a cabeça com a faixa de escolaridade, que não batia com resultados do artigo Evolução da Diabetes ...
+# descobri uma variável derivada, criada pelo IBGE, para indicar o nível de escolaridade dentro do sistema de 9 anos.
+# é a VDD004A; portanto vou recodificar a fx_esc para usar essa variável.
+# os níveis são:
+# 1	Sem instrução
+# 2	Fundamental incompleto ou equivalente
+# 3	Fundamental completo ou equivalente
+# 4	Médio incompleto ou equivalente
+# 5	Médio completo ou equivalente
+# 6	Superior incompleto ou equivalente
+# 7	Superior completo 
+# 	Não aplicável
+pns2019.1 <- pns2019.1 %>%
+  mutate(niv_esc  = as.character(vdd004a)) %>%
+  mutate(fx_esc = case_when(is.na(niv_esc) | niv_esc == "1" | niv_esc == "2" ~ "IncElem",
+                            niv_esc == "3" | niv_esc == "4" ~ "CompElem", 
+                            niv_esc == "5" | niv_esc == "6" ~ "CompHiSc",
+                            niv_esc == "7" ~ "CompHigher"))
+
+pns2019.1$fx_esc <- ordered(pns2019.1$fx_esc,
+            levels = c("IncElem","CompElem","CompHiSc","CompHigher"))
+
+
+
+
+pns2019.1 <- pns2019.1 %>%
+  mutate(RaceSkinColor = case_when(c009 == 1 ~ "White",
+                                   c009 == 2 ~ "Black",
+                                   c009 == 4 ~ "Mixed-race",
+                                   c009 == 3 ~ "Asian",
+                                   c009 == 5 ~ "Indigenous",
+                                   TRUE ~ "Ignored"),
+         )
+
+pns2019.1$RaceSkinColor <- ordered(pns2019.1$RaceSkinColor,
+          levels = c("White","Black","Mixed-race","Asian","Indigenous","Ignored"))
+
+pns2019.1 <- pns2019.1 %>%
+  mutate(Hypertension = case_when((gender == "Women" & q00202 != 1) | q00201 == 1 ~ "Yes",
+                                  TRUE ~ "No"))
+pns2019.1$Hypertension <- ordered(pns2019.1$Hypertension,levels = c("Yes","No"))
+
+```
+
+
+### PNS 2019- Tabela com todos os indicadores
+
+```{r compltablcross19, tab.cap = "PNS 2019 sociodemographic and social indicators"}
+compltabcross19 <- pns2019.1 %>% 
+  select(`Age(years)`=fxetaria2,`Race/Skin color`=RaceSkinColor,`Education level`=fx_esc, `Body mass index(kg/m²)`=imcclass2, gender,Hypertension) %>%
+crosstable( 
+           cols = c(`Age(years)`,`Race/Skin color`,`Education level`, `Body mass index(kg/m²)`, "Hypertension"), 
+           by = gender, total = "both", 
+           percent_pattern="{n} ({p_col})", percent_digits = 1)
+compltabcross19 %>% 
+  crosstable::as_flextable()
+```
+
+
+### PNS 2019 - Age
+
+
+```{r fxetaria19, include = FALSE, tab.cap = "PNS 2019 -Age"}
+tbl_fxetaria19 <- pns2019.1 %>% 
+  tabyl(fxetaria2, gender, show_missing_levels = FALSE,) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+ adorn_ns(,,,position="front",Men:Total ) %>%
+ select(`Age(years)`=fxetaria2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_fxetaria19 %>%
+  flextable()
+```
+
+### PNS 2019- Body Mass Index
+
+```{r  imcclass19, include = FALSE, tab.cap = "PNS 2019 - Body Mass Index"}
+tbl_imcclass19 <- pns2019.1 %>% 
+  tabyl(imcclass2, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+ adorn_ns(,,,position="front",Men:Total ) %>%
+ select(`Body mass index(kg/m²)`=imcclass2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_imcclass19 %>%
+  flextable()
+```
+
+
+### PNS 2019 - Education 
+
+
+```{r  fxesc19,  include = FALSE, tab.cap = "PNS 2019 - Education"}
+tbl_fxesc19 <- pns2019.1 %>% 
+  tabyl(fx_esc, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+  adorn_ns(,,,position="front",Men:Total ) %>%
+  select(`Education level`=fx_esc, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_fxesc19 %>%
+  flextable()
+```
+
+
+
+### PNS 2019 - Race Skin Color
+
+
+
+```{r  raceskin19, include=FALSE, tab.cap = "PNS 2019 - Race Skin Color"}
+tbl_raceskin19 <- pns2019.1 %>% 
+  tabyl(RaceSkinColor, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+  adorn_ns(,,,position="front",Men:Total ) %>%
+  select(`Race/Skin color`=RaceSkinColor, Total, Men, Women)
+tbl_raceskin19 %>%
+  flextable()
+```
+
+### PNS 2019 - Hypertension
+
+
+```{r Hypertension19, include = FALSE,  tab.cap = "PNS 2019 - Hypertension"}
+tbl_hyperten19 <- pns2019.1 %>%
+  tabyl(Hypertension, gender, show_missing_levels = FALSE) %>%
+  adorn_totals(c("row","col")) %>%
+  adorn_percentages(,denominator = "col") %>%
+  adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
+  adorn_ns(,,,position="front",Men:Total ) %>%
+  select(Hypertension, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
+tbl_hyperten19 %>%
+  flextable()
+```
+
+
+## Construindo o objetvo _survey_ PNS 2019
+
+```{r}
+pns2019.1$one <- 1
+pes_sel_des <-
+    svydesign(
+     id = ~ upa_pns ,
+     strata = ~ v0024 ,
+     data = as.data.frame(pns2019.1) ,
+     weights = ~ v0029 ,
+     nest = TRUE
+)
+post_pop <- unique( pns2019.1[ c( 'v00293' , 'v00292' ) ] )
+names( post_pop ) <- c( "v00293" , "Freq" )
+# post-stratified design
+pns_design19 <- survey::postStratify( pes_sel_des , ~v00293 , post_pop )
+rm(pes_sel_des)
+pns_design_srvyr19 <- as_survey_design(pns_design19)
+```
+
+
+```{r eval = FALSE,  pns2019_verif}
+# verificando alguns indicadores para consistencia
+round(svytable(~diabetes, pns_design_srvyr19, addNA = TRUE, Ntotal = 100),4)
+
+svytable(~q02901, pns_design_srvyr19, addNA = TRUE, Ntotal = 100)
+
+svytable(~gender, pns_design_srvyr19, Ntotal = 100)
+
+```
+
+
+### PNS 2019 - Tabulações Ponderadas
+
+```{r}
+com.diabetes19.wt.df <- subset(pns_design_srvyr19, diabetes == 1 | diabetes == 2)
+com.diabetes19.wt <- round(as.data.frame(svytotal(~diabetes, com.diabetes19.wt.df))[1,1],0)
+```
+
+
+
+É possível obter os valores ponderados assim:
+```{r}
+total_genders19 <- pns2019.1 %>%
+  count(gender, wt = v00291)
+total_homens19 <- as.integer(total_genders19[1,2])
+total_mulheres19 <- as.integer(total_genders19[2,2])
+```
+
+
+
+```{r eval = FALSE}
+svytable(~one + gender, pns_design_srvyr19)
+```
+
+```{r todos19fxet2,  include=FALSE, tab.cap = "PNS 2019 - Weighted Age (total)"}
+todos19_fxetaria2 <- as.data.frame(svyby(~one, ~fxetaria2, pns_design_srvyr19, svytotal, vartype = "ci")) %>%
+  rename(total_fx=one,fx_ci_l=ci_l,fx_ci_u=ci_u)
+todos19_fxetaria2 %>% flextable()
+```
+
+
+```{r homens19fxet, include=FALSE, tab.cap = "PNS 2019 - Men Ages"}
+homens19_fxetaria2 <-  as.data.frame(svyby(~one, ~fxetaria2, subset(pns_design_srvyr19, gender == "Men" ), svytotal, vartype = "ci")) %>%
+  rename(total_fx=one,fx_ci_l=ci_l,fx_ci_u=ci_u)
+homens19_fxetaria2 %>% flextable()
+```
+
+```{r mul19fxet, include = FALSE, tab.cap = "PNS 2019 - Women Ages"}
+mulheres19_fxetaria2 <-  as.data.frame(svyby(~one, ~fxetaria2, subset(pns_design_srvyr19, gender == "Women" ), svytotal, vartype = "ci")) %>%
+  rename(total_fx=one,fx_ci_l=ci_l,fx_ci_u=ci_u)
+mulheres19_fxetaria2 %>% flextable()
+```
+
+```{r todosfxesc19,  include = FALSE}
+todos_fxesc19 <- as.data.frame(svyby(~one, ~fx_esc, pns_design_srvyr19, svytotal, vartype = "ci")) %>%
+  rename(total_fxesc = one, fxesc_ci_l = ci_l, fxesc_ci_u = ci_u)
+```
+
+
+```{r todosrace19, include = FALSE}
+todos_race19 <- as.data.frame(svyby(~one, ~RaceSkinColor, pns_design_srvyr19, svytotal, vartype = "ci")) %>%
+  rename(total_race = one, race_ci_l = ci_l, race_ci_u = ci_u)
+```
+
+
+```{r todoshyper19, include = FALSE}
+todos_hyper19 <- as.data.frame(svyby(~one, ~Hypertension, pns_design_srvyr19, svytotal, vartype = "ci")) %>%
+  rename(total_hyper = one, hyper_ci_l = ci_l, hyper_ci_u = ci_u)
+```
+
+
+### PNS 2019 - Diabetes
+
+
+```{r diabetes2019, tab.cap = "PNS 2019 - Diabetes (all)"}
+diabetes2019 <- svyby(~one, ~diabetes, pns_design_srvyr19, svytotal, vartype = "ci", Ntotal = 100)
+total2019 <- sum(total_genders19[,2])
+diabetes2019 <- diabetes2019 %>%
+  mutate(one_perc = one/total2019, ci_l_perc = ci_l/total2019, ci_u_perc = ci_u/total2019)
+diabetes2019_tbl <- diabetes2019 %>% 
+  mutate(`(%)`=round(one_perc*100,1),ci_l_perc = round(ci_l_perc*100,1),
+         ci_u_perc = round(ci_u_perc*100,1),`%95CI`=paste0(ci_l_perc,"-",ci_u_perc),
+         diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         )) %>%
+  rename(n=one) %>%
+  mutate(n = round(n,0)) %>%
+  select(diabetes,n,`2019 (%)`=`(%)`,`2019 %95CI`=`%95CI`)
+diabetes2019_tbl %>% adorn_totals() %>%
+  flextable(theme_fun = theme_booktabs) %>% autofit()
+```
+
+
+
+
+```{r diabmulheres19 }
+diabetes.mulheres19 <- svyby(~one, ~diabetes, subset(pns_design_srvyr19, gender == "Women"), svytotal, vartype = "ci", Ntotal = 100)
+```
+
+```{r diabmulheres19_b, tab.cap = "PNS 2019 - Women diabetes"}
+diabetes.mulheres19 <- diabetes.mulheres19 %>%
+  mutate(one_perc = one/total_mulheres19, ci_l_perc = ci_l/total_mulheres19, ci_u_perc = ci_u/total_mulheres19)
+diabetes.mulheres19_tbl <- diabetes.mulheres19 %>% 
+  mutate(`(%)`=round(one_perc*100,1),ci_l_perc = round(ci_l_perc*100,1),
+         ci_u_perc = round(ci_u_perc*100,1),`%95CI`=paste0(ci_l_perc,"-",ci_u_perc),
+         diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         )) %>%
+  rename(n=one) %>%
+  mutate(n = round(n,0)) %>%
+  select(diabetes,n,`2019 (%)`= `(%)`,`2019 %95CI`=`%95CI`)
+diabetes.mulheres19_tbl %>% adorn_totals() %>%
+  flextable(theme_fun = theme_booktabs) %>% autofit()
+```
+
+```{r diabhomens19}
+diabetes.homens19 <- svyby(~one, ~diabetes, subset(pns_design_srvyr19, gender == "Men"), svytotal, vartype = "ci", Ntotal = 100) %>%
+  mutate(one_perc = one/total_homens19, ci_l_perc = ci_l/total_homens19, ci_u_perc = ci_u/total_homens19)
+```
+
+```{r diabhomens19_tbl, tab.cap = "PNS 2019 - Men diabetes"}
+diabetes.homens19_tbl <- diabetes.homens19 %>% 
+  mutate(`(%)`=round(one_perc*100,1),ci_l_perc = round(ci_l_perc*100,1),
+         ci_u_perc = round(ci_u_perc*100,1),`%95CI`=paste0(ci_l_perc,"-",ci_u_perc),
+         diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         )) %>%
+  rename(n=one) %>%
+  mutate(n = round(n,0)) %>%
+  select(diabetes,n,`2019 (%)`= `(%)`,`2019 %95CI`=`%95CI`)
+diabetes.homens19_tbl %>% adorn_totals() %>%
+  flextable(theme_fun = theme_booktabs) %>% autofit()
+```
+
+
+#### Diabetes por Faixa Etária
+
+```{r diabfxetaria19, include = FALSE, tab.cap = "PNS 2019 - Diabetes by Age (all)"}
+diabetes.fxetaria19 <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr19, diabetes == 1), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(todos19_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
+diabetes.fxetaria19 %>% flextable() %>% autofit()
+```
+
+
+```{r diabfxetmen19, include = FALSE,  tab.cap = "PNS 2019 - Men diabetes by age"}
+diabetes.fxetaria.men19 <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr19, diabetes == 1 & gender == "Men"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(homens19_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
+diabetes.fxetaria.men19 %>% flextable() %>% autofit()
+```
+
+```{r diabfxetwomen19, include = FALSE,  tab.cap = "PNS 2019 - Women diabetes by age"}
+diabetes.fxetaria.women19 <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr19, diabetes == 1 & gender == "Women"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(mulheres19_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
+diabetes.fxetaria.women19 %>% flextable() %>% autofit()
+```
+
+
+
+
+
+#### Diabetes por IMC
+
+
+```{r todosimc219,  include = FALSE,  include=FALSE, tab.cap = "PNS 2019 - Weighted BMI (total)"}
+todos_imcclass219 <- as.data.frame(svyby(~one, ~imcclass2, pns_design_srvyr19, svytotal, vartype = "ci", addNA = FALSE)) %>%
+  rename(total_imc=one,imc_ci_l=ci_l,imc_ci_u=ci_u)# %>%
+#  filter(imcclass2 != "Missing Data")
+todos_imcclass219  %>%
+  flextable()
+```
+
+
+```{r homensimc19, include = FALSE,  include=FALSE, tab.cap = "PNS 2019 - Men BMI"}
+homens_imcclass219 <-  as.data.frame(svyby(~one, ~imcclass2, subset(pns_design_srvyr19, gender == "Men" ), svytotal, vartype = "ci", addNA = TRUE)) %>%
+  rename(total_imc=one,imc_ci_l=ci_l,imc_ci_u=ci_u)#  %>%
+#  filter(imcclass2 != "Missing Data")
+homens_imcclass219 %>% flextable()
+```
+
+```{r mulhimc19,  include = FALSE,  include=FALSE, tab.cap = "PNS 2019 - Women BMI"}
+mulheres_imcclass219 <-  as.data.frame(svyby(~one, ~imcclass2, subset(pns_design_srvyr19, gender == "Women" ), svytotal, vartype = "ci")) %>%
+  rename(total_imc=one,imc_ci_l=ci_l,imc_ci_u=ci_u)# %>%
+#  filter(imcclass2 != "Missing Data")
+mulheres_imcclass219 %>% flextable()
+```
+
+
+
+
+```{r diabimcclass19, include = FALSE,  tab.cap = "PNS 2019 - Diabetes by Body Mass Index (all)"}
+diabetes.imcclass19 <- svyby(~diabetes,~imcclass2,  subset(pns_design_srvyr19, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_imcclass219,-imcclass2))  %>%
+  mutate(diab_perc = round(diabetes/total_imc*100,1), ci_l_perc = round(ci_l/imc_ci_l*100,1), ci_u_perc = round(ci_u/imc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc))   %>%
+  select(`Body mass index(kg/m²)`=imcclass2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
+diabetes.imcclass19 %>% flextable() %>% autofit()
+```
+
+
+```{r diabimcmen19, include = FALSE,  tab.cap = "PNS 2019 - Men BMI by age"}
+diabetes.imcclass2.men19 <- svyby(~diabetes,~imcclass2,  subset(pns_design_srvyr19, diabetes == 1 & gender == "Men"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(homens_imcclass219,-imcclass2)) %>%
+  mutate(diab_perc = round(diabetes/total_imc*100,1), ci_l_perc = round(ci_l/imc_ci_l*100,1), ci_u_perc = round(ci_u/imc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Body mass index(kg/m²)`=imcclass2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
+diabetes.imcclass2.men19 %>% flextable() %>% autofit()
+```
+
+```{r diabimcwomen19, include = FALSE,  tab.cap = "PNS 2019 - Women BMI by age"}
+# pelos resultados do artigo, não considera diabetes gestacional (diabetes == 1  | diabetes == 2)
+diabetes.imcclass2.women19 <- svyby(~diabetes,~imcclass2,  subset(pns_design_srvyr19, diabetes == 1 & gender == "Women"), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(mulheres_imcclass219,-imcclass2)) %>%
+  mutate(diab_perc = round(diabetes/total_imc*100,1), ci_l_perc = round(ci_l/imc_ci_l*100,1), ci_u_perc = round(ci_u/imc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Body mass index(kg/m²)`=imcclass2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
+diabetes.imcclass2.women19 %>% flextable() %>% autofit()
+```
+
+#### Diabetes por Escolaridade
+
+```{r diabfxesc19, include = FALSE,  tab.cap = "PNS 2019 - Diabetes by Education (all)"}
+# não vou considerar diabetes gestacional
+diabetes.fxesc19 <- svyby(~diabetes,~fx_esc,  subset(pns_design_srvyr19, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_fxesc19,-fx_esc))  %>%
+  mutate(fx_esc_perc = round(diabetes/total_fxesc*100,1), ci_l_perc = round(ci_l/fxesc_ci_l*100,1), ci_u_perc = round(ci_u/fxesc_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc))   %>%
+  select(`Education`=fx_esc, n=diabetes, `2019 (%)`= fx_esc_perc,`2019 %95CI`=`%95CI`)
+diabetes.fxesc19 %>% flextable() %>% autofit()
+```
+
+
+
+#### Diabetes por Raça, Cor da Pele
+
+```{r diabrace19, include = FALSE,  tab.cap = "PNS 2019 - Diabetes by Race/Skin Color (all)"}
+# não vou considerar diabetes gestacional
+diabetes.race19 <- svyby(~diabetes,~RaceSkinColor,  subset(pns_design_srvyr19, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+  bind_rows(data.frame(RaceSkinColor="Ignored",diabetes = 0, ci_l = 0, ci_u = 0)) %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_race19,-RaceSkinColor))  %>%
+  mutate(race_perc = round(diabetes/total_race*100,1), ci_l_perc = round(ci_l/race_ci_l*100,1), ci_u_perc = round(ci_u/race_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc))   %>%
+  select(`RaceSkinColor`=RaceSkinColor, n=diabetes, `2019 (%)`= race_perc,`2019 %95CI`=`%95CI`)
+diabetes.race19 %>% flextable() %>% autofit()
+```
+
+
+#### Diabetes por Hipertensão
+
+```{r diabhyper19, include = FALSE,  tab.cap = "PNS 2019 - Diabetes by Hypertension (all)"}
+# não vou considerar diabetes gestacional
+diabetes.hyper19 <- svyby(~diabetes,~Hypertension,  subset(pns_design_srvyr19, diabetes == 1), svytotal, vartype = "ci", addNA = FALSE ) %>%
+  mutate_if(is.numeric,as.integer)  %>%
+#  filter(imcclass2 != "Missing Data") %>%
+  bind_cols(select(todos_hyper19,-Hypertension))  %>%
+  mutate(hyper_perc = round(diabetes/total_hyper*100,1), ci_l_perc = round(ci_l/hyper_ci_l*100,1), ci_u_perc = round(ci_u/hyper_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc))   %>%
+  select(Hypertension, n=diabetes, `2019 (%)`= hyper_perc,`2019 %95CI`=`%95CI`)
+diabetes.hyper19 %>% flextable() %>% autofit()
+```
+
+
+
+
+### PNS 2019 - Juntando tudo em um data.frame 
+
+```{r diab2019}
+diabimc19.df <- as.data.frame(diabetes.imcclass19)
+diabimc19.df$Classe <- "Body mass index(kg/m²)"
+diabfx19.df <- as.data.frame(diabetes.fxetaria19)
+diabfx19.df$Classe <- "Age(years)"
+diabimc19.df <- diabimc19.df %>% rename(Nome =  `Body mass index(kg/m²)`, n2019 = n)
+diabfx19.df <- diabfx19.df %>% rename(Nome = `Age(years)`, n2019 = n)
+diabfx19.df <- diabfx19.df %>% mutate(Nome = as.character(Nome))
+diabimc19.df <- diabimc19.df %>% mutate(Nome = as.character(Nome))
+diabrsc19.df <- as.data.frame(diabetes.race19) %>% 
+  rename(Nome = RaceSkinColor, n2019 = n) %>%
+  mutate(Nome = as.character(Nome), Classe = "RaceSkinColor")
+diabfxesc19.df <- diabetes.fxesc19 %>%
+  rename(Nome = Education, n2019 = n) %>%
+  mutate(Nome = as.character(Nome), Classe = "Education")
+diabhyp19.df <- diabetes.hyper19 %>%
+  rename(Nome = Hypertension, n2019 = n) %>%
+  mutate(Nome = as.character(Nome), Classe ="Hypertension")
+diab2019.df <- bind_rows(diabfx19.df,diabrsc19.df,diabfxesc19.df, diabimc19.df,diabhyp19.df)
+```
+
+```{r   include = FALSE}
+diab2019.df %>%  
+   gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing()
+```
+
+
+```{r}
+diabetes2019_tbl$Classe <- "Geral"
+diabetes2019_tbl <- diabetes2019_tbl %>%
+  rename(Nome = "diabetes", n2019 = n)
+diabetes.mulheres19_tbl$Classe <- "Women"
+diabetes.mulheres19_tbl <- diabetes.mulheres19_tbl %>%
+  rename(Nome = "diabetes", n2019 = n)
+diabetes.homens19_tbl$Classe <- "Men"
+diabetes.homens19_tbl <- diabetes.homens19_tbl %>%
+  rename(Nome = "diabetes", n2019 = n)
+diabetes2019_gt <- bind_rows(diabetes2019_tbl, diabetes.mulheres19_tbl, diabetes.homens19_tbl)
+```
+
+```{r eval = FALSE}
+saveRDS(diabetes2019_gt, file = "diabetes2019_gt_20230505.rds", compress = TRUE)
+```
+
+
+```{r  include = FALSE}
+diabetes2019_gt %>%
+  gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing()
+```
+
+
+# Tabulação conjunta PNS 2013 e PNS 2019
+
+```{r}
+diab1319.df <- bind_cols(diab2013.df, select(diab2019.df, -Nome,-Classe))
+```
+
+
+
+```{r eval = FALSE}
+saveRDS(diab1319.df, file = "diab1319_20230505.rds", compress = TRUE)
+```
+
+
+```{r}
+diab1319.df %>%
+     gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing() %>%
+  cols_label(
+    n2013 = "N",
+    n2019 = "N",
+    "2013 (%)" = "(%)",
+    `2013 %95CI` = "95%CI",
+    "2019 (%)" = "(%)",
+    `2019 %95CI` = "95%CI"
+  ) %>%
+  tab_spanner(
+    label = "Characteristic",
+    columns = c(Classe)
+  ) %>%
+  tab_spanner(
+    label = "2013",
+    columns = c(n2013, `2013 (%)`, `2013 %95CI`)
+  ) %>%
+  tab_spanner(
+    label = "2019",
+    columns = c(n2019, `2019 (%)`, `2019 %95CI`)
+  ) %>%
+  summary_rows(
+    groups = TRUE,
+    columns = c(n2013,n2019),
+    fns = list(
+      total = ~sum(.)
+    ),
+    formatter = fmt_number,
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(n2013,n2019), 
+    decimals = 0, 
+    use_seps = TRUE
+  ) %>%
+  tab_header(
+    title = md("Prevalence of Diabetes according to Age, Race/Skin Color, Education, BMI and Hypertension"),
+    subtitle = md("Data from PNS 2013 and 2019")
+  )
+```
+
+# Age standardized 
+
+```{r echo = TRUE}
+library(readxl)
+#projpopsimples <- read_excel("~/datasets/IBGE/Populacao/projecoes_2018_populacao_idade_simples_2010_2060_20201209.xls", 
+#    sheet = "BR", skip = 195,n_max = 92)
+projecaopop <- "./IBGEProjPop/projecoes_2018_populacao_idade_simples.xls"
+if (!file.exists(projecaopop)) {
+   download.file("https://ftp.ibge.gov.br/Projecao_da_Populacao/Projecao_da_Populacao_2018/projecoes_2018_populacao_idade_simples_2010_2060_20201209.xls", projecaopop)
+} 
+projpopsimples <- read_excel(projecaopop,  sheet = "BR", skip = 195,n_max = 92)
+```
+
+## Usando as faixas da Tabela 2 do artigo
+
+As faixas etárias de interesse são:
+`"18-24", "25-34", "35-44", "45-54", "55-64", "65+"`
+
+Assim, vou reagrupar os valores nestas faixas etárias.
+
+```{r  echo = TRUE}
+projpop1319 <- projpopsimples %>% 
+  select(IDADE,a2012 =`2012`,a2013=`2013`,a2018 = `2018`, a2019=`2019`) %>% 
+  filter(!IDADE %in% c("TOTAL")) %>%
+  mutate(IDADE = if_else(IDADE == "90+","90",IDADE)) %>%
+  mutate(IDADE = as.integer(IDADE))
+```
+
+```{r  echo = TRUE}
+fxetariascut <- projpop1319 %>% 
+  group_by(cut(projpop1319$IDADE,breaks = c(0,15,18,25,35,45,55,65,Inf), include.lowest = TRUE)) %>%
+#  group_by(cut(projpop1319$IDADE,breaks = c(0,18,25,40,50,65,Inf), right = FALSE, include.lowest = TRUE)) %>%
+  summarise(across(.cols = dplyr::starts_with("a"),.fns = sum)) 
+fxetariascut %>% flextable() %>% autofit()
+```
+
+```{r  echo = TRUE}
+fxetariascut %>% 
+#  slice(2:n()) %>% 
+  adorn_percentages(denominator = "col")  %>% flextable() %>% autofit()
+```
+
+
+```{r }
+popfxetarias19_l <- as.vector(fxetariascut[,"a2019"])
+popfxetarias19_f <- as.numeric(popfxetarias19_l$a2019)
+popfxetarias19 <- popfxetarias19_f[2:length(popfxetarias19_f)]
+```
+
+## Usando as faixas de idade mostradas no texto
+
+Do artigo "Evolution of diabetes in Brazil ... "
+
+> The prevalence of diabetes in Brazilian states was adjusted using direct standardization to the age distribution estimated by the IBGE for the 2019 Brazilian adult population based on five age groups (18-24 years, 25-39 years, 40-49 years, 50-64 years, and ≥ 65 years) with corresponding weights (0.14211, 0.30481, 0.18219; 0.22871, and 0.14219).
+
+
+
+```{r echo = TRUE}
+projpop1319_a <- projpopsimples %>% 
+  select(IDADE,a2012 =`2012`,a2013=`2013`,a2018 = `2018`, a2019=`2019`) %>% 
+  filter(!IDADE %in% c("TOTAL")) %>%
+  mutate(IDADE = if_else(IDADE == "90+","90",IDADE)) %>%
+  mutate(IDADE = as.integer(IDADE))
+```
+
+```{r echo = TRUE }
+fxetariascut_a <- projpop1319_a %>% 
+  group_by(cut(projpop1319$IDADE,breaks = c(0,18,25,40,50,65,Inf), include.lowest = TRUE)) %>%
+#  group_by(cut(projpop1319$IDADE,breaks = c(0,18,25,40,50,65,Inf), right = FALSE, include.lowest = TRUE)) %>%
+  summarise(across(.cols = dplyr::starts_with("a"),.fns = sum)) 
+fxetariascut_a %>% flextable() %>% autofit()
+```
+
+```{r echo = TRUE}
+fxetariascut_a %>% 
+#  slice(2:n()) %>% 
+  adorn_percentages(denominator = "col")  %>% flextable() %>% autofit()
+```

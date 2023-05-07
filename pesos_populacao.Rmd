@@ -1,0 +1,116 @@
+---
+title: "Cálculo da distribuição da população"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+```
+
+
+## Distribuição da População por faixas etárias do IBGE
+
+
+O IBGE distribui arquivos com a projeção anual da população a partir do último censo; essas projeções são atualizadas periodicamente, incorporando ajustes técnicos e também novas estimativas.
+
+A última projeção disponibilizada (ajustada) é de 2018, com projeções para o período de 2010 até 2060.
+
+Vou utilizar essa projeção para calcular a distribuição da população em 2013 e 2019 para ajustar os valores da PNS.
+
+
+```{r}
+library(readxl)
+#projpopsimples <- read_excel("~/datasets/IBGE/Populacao/projecoes_2018_populacao_idade_simples_2010_2060_20201209.xls", 
+#    sheet = "BR", skip = 195,n_max = 92)
+projecaopop <- "./IBGEProjPop/projecoes_2018_populacao_idade_simples.xls"
+download.file("https://ftp.ibge.gov.br/Projecao_da_Populacao/Projecao_da_Populacao_2018/projecoes_2018_populacao_idade_simples_2010_2060_20201209.xls", projecaopop)
+projpopsimples <- read_excel(projecaopop,  sheet = "BR", skip = 195,n_max = 92)
+```
+```{r}
+head(projpopsimples)
+```
+
+```{r}
+proppoptotal <- select(projpopsimples,IDADE,a2013=`2013`,a2019=`2019`) %>% filter(IDADE == "TOTAL")
+proppoptotal
+```
+
+
+```{r}
+tail(projpopsimples)
+```
+
+
+As faixas etárias de interesse são:
+`"18-24", "25-34", "35-44", "45-54", "55-64", "65+"`
+
+Assim, vou reagrupar os valores nestas faixas etárias.
+
+```{r}
+projpop1319 <- projpopsimples %>% 
+  select(IDADE,a2012 =`2012`,a2013=`2013`,a2018 = `2018`, a2019=`2019`) %>% 
+  filter(!IDADE %in% c("TOTAL")) %>%
+  mutate(IDADE = if_else(IDADE == "90+","90",IDADE)) %>%
+  mutate(IDADE = as.integer(IDADE))
+```
+
+```{r}
+x <- projpop1319 %>% filter(IDADE >= 18 & IDADE < 25) %>% summarise(p2013 = sum(a2013), p2019 = sum(a2019))
+fx1 <- data.frame(FXETARIA = "18-24", a2013 = x$p2013, a2019 = x$p2019)
+x <- projpop1319 %>% filter(IDADE >= 25 & IDADE < 35) %>% summarise(p2013 = sum(a2013), p2019 = sum(a2019))
+fx2 <- data.frame(FXETARIA = "25-34", a2013 = x$p2013, a2019 = x$p2019)
+x <- projpop1319 %>% filter(IDADE >= 35 & IDADE < 45) %>% summarise(p2013 = sum(a2013), p2019 = sum(a2019))
+fx3 <- data.frame(FXETARIA = "35-44", a2013 = x$p2013, a2019 = x$p2019)
+x <- projpop1319 %>% filter(IDADE >= 45 & IDADE < 55) %>% summarise(p2013 = sum(a2013), p2019 = sum(a2019))
+fx4 <- data.frame(FXETARIA = "45-54", a2013 = x$p2013, a2019 = x$p2019)
+x <- projpop1319 %>% filter(IDADE >= 55 & IDADE < 65) %>% summarise(p2013 = sum(a2013), p2019 = sum(a2019))
+fx5 <- data.frame(FXETARIA = "55-64", a2013 = x$p2013, a2019 = x$p2019)
+x <- projpop1319 %>% filter(IDADE >= 65) %>% summarise(p2013 = sum(a2013), p2019 = sum(a2019))
+fx6 <- data.frame(FXETARIA = "65+", a2013 = x$p2013, a2019 = x$p2019)
+fxetarias1319 <- bind_rows(fx1,fx2,fx3,fx4,fx5,fx6)
+```
+
+```{r}
+fxetarias1319
+```
+
+
+```{r}
+pesosfxetaria <- data.frame(w2013 = fxetarias1319[,2]/proppoptotal$a2013, w2019 = fxetarias1319[,3]/proppoptotal$a2019)
+pesosfxetaria
+```
+
+As faixas etárias de interesse são:
+`"18-24", "25-34", "35-44", "45-54", "55-64", "65+"`
+
+
+
+```{r}
+fxetariascut <- projpop1319 %>% 
+#  group_by(cut(projpop1319$IDADE,breaks = c(0,18,25,35,45,55,65,Inf), include.lowest = TRUE)) %>%
+  group_by(cut(projpop1319$IDADE,breaks = c(-0.01,17.9,24.9,34.9,44.9,54.9,64.9,Inf),
+                      labels = c("<18","18-24","25-34","35-44","45-54","55-64","65+"))) %>%
+#  group_by(cut(projpop1319$IDADE,breaks = c(0,18,25,40,50,65,Inf), right = FALSE, include.lowest = TRUE)) %>%
+  summarise(across(.cols = dplyr::starts_with("a"),.fns = sum)) 
+fxetariascut
+```
+
+
+```{r}
+fxetariascut %>% 
+#  slice(2:n()) %>% 
+  adorn_percentages(denominator = "col")
+```
+
+
+Olhar esse link como fazer o standardize
+https://github.com/mlaviolet/Survey-data-analysis/blob/master/age-adjusted-prevalence.R
+
+docs sobre o assunto:
+https://www.apheo.ca/methods-for-age-standardizing-survey-estimates
+https://epirhandbook.com/en/standardised-rates.html
+https://www.paho.org/english/sha/be_v23n3-standardization.htm
+https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf
+https://websites.umich.edu/~surveymethod/asda/   
+
+

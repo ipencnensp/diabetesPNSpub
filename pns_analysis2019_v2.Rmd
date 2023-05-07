@@ -1,0 +1,1833 @@
+---
+title: "PNS 2019 Analysis"
+author: "Mário O. de Menezes"
+date: "12/07/2021"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    theme: cerulean
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+flextable::set_flextable_defaults(na_str = " ", decimal.mark = ",", big.mark = ".")
+```
+
+```{r message=FALSE, warning=FALSE}
+library(survey)
+library(srvyr)
+library(ggplot2)
+library(ggpubr)
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(tidyr)
+library(janitor)
+library(pander)
+library(crosstable)
+library(jtools)
+library(flextable)
+library(gt)
+library(gtsummary)
+library(gtExtras)
+library(rio)
+```
+
+
+# PNS 2019
+
+
+## Using the new PNS 2019 - IBGE com PNSIBGE pkg
+
+
+```{r echo=FALSE, include=FALSE}
+options("survey.multicore" = TRUE)
+```
+
+
+
+
+```{r lendopns2019}
+# usando a biblioteca rio
+pns2019.1 <- import("data/PNSIBGE_Rpkg/pns2019microdata_get_pns20230505.csv")
+```
+
+
+```{r criavars1}
+
+pns2019.1 <- pns2019.1 %>% 
+  filter(V0025A=="1") %>%
+  filter(!is.na(V0029))
+
+#Estados - UFs
+#pns2019.1 <- pns2019.1 %>% rename(UF=V0001)
+pns2019.1 <- mutate(pns2019.1, UF = factor(V0001, levels=c(11,12,13,14,15,16,17,21,22,23,24,25,26,27,28,29,31,32,33,35,41,42,43,50,51,52,53), label=c("Rondonia","Acre","Amazonas","Roraima","Para","Amapa","Tocantins","Maranhao","Piaui","Ceara",
+                                        "Rio Grande do Norte","Paraiba","Pernambuco","Alagoas","Sergipe","Bahia",
+                                        "Minas Gerais","Espirito Santo","Rio de Janeiro","Sao Paulo",
+                                        "Parana","Santa Catarina","Rio Grande do Sul", 
+                                        "Mato Grosso do Sul","Mato Grosso","Goias","Distrito Federal")))
+#Grandes Regiões
+pns2019.1 <- pns2019.1 %>% 
+  mutate(Regiao = fct_collapse(UF, 
+                `Norte` = c("Rondonia","Acre","Amazonas","Roraima","Para", "Amapa","Tocantins"),
+                `Nordeste` = c("Maranhao", "Piaui", "Ceara", "Rio Grande do Norte", "Paraiba","Pernambuco", "Alagoas","Sergipe","Bahia"),
+                `Sudeste` = c("Minas Gerais", "Espirito Santo","Rio de Janeiro", "Sao Paulo"), 
+                `Sul` = c("Parana", "Santa Catarina", "Rio Grande do Sul"),
+                `Centro-Oeste`= c("Mato Grosso do Sul","Mato Grosso", "Goias", "Distrito Federal")))
+#Capital
+pns2019.1<- pns2019.1 %>% mutate(Capital= fct_collapse(UF,
+                                        `Porto Velho`= "Rondonia", 
+                                        `Boa Vista`= "Roraima",              
+                                        `Rio Branco `= "Acre", 
+                                        `Manaus` = "Amazonas",
+                                        `Boa Vista`= "Roraima",
+                                        `Belem` = "Para" ,
+                                        `Macapa`= "Amapa",
+                                        `Palmas` = "Tocantins",
+                                        `Sao Luis` = "Maranhao",
+                                        `Teresina`= "Piaui" ,
+                                        `Fortaleza`= "Ceara",
+                                        `Natal`= "Rio Grande do Norte",
+                                        `Joao Pessoa`= "Paraiba",
+                                        `Recife`= "Pernambuco",
+                                        `Maceio`= "Alagoas",
+                                        `Aracaju`= "Sergipe",
+                                        `Salvador`= "Bahia",
+                                        `Belo Horizonte`= "Minas Gerais",
+                                        `Vitoria`= "Espirito Santo",
+                                        `Rio de Janeiro`= "Rio de Janeiro",
+                                        `Sao Paulo`= "Sao Paulo",
+                                        `Curitiba`= "Parana",
+                                        `Florianopolis`= "Santa Catarina",
+                                        `Porto Alegre`= "Rio Grande do Sul",
+                                        `Campo Grande`=  "Mato Grosso do Sul",
+                                        `Cuiaba`= "Mato Grosso",
+                                        `Goiania` = "Goias",
+                                        `Brasilia`= "Distrito Federal"))
+# copiei os indicadores da Fiocruz para comparar os resultados
+
+#Q001P - Pressão arterial nunca aferida
+pns2019.1 <- pns2019.1 %>% mutate(Q001P = ifelse(Q00101 == 6,1,2))
+pns2019.1 <- pns2019.1 %>% mutate(Q001P = factor(Q001P, levels=c(1,2), labels=c("Sim","Não")))
+
+#Q003P - Exame de sangue para medir a glicemia nunca realizado
+pns2019.1 <- pns2019.1 %>% mutate(Q003P = ifelse(Q02901 == 6,1,2))
+pns2019.1 <- pns2019.1 %>% mutate(Q003P = factor(Q003P, levels=c(1,2), labels=c("Sim","Não")))
+
+# diabetes
+pns2019.1 <- pns2019.1 %>% mutate(Q004P = if_else(Q03002==1 & C006==2,2,
+                                          if_else(Q03001==1,1,2,missing=2),missing=2))                                         
+pns2019.1 <- pns2019.1 %>% mutate(Q004P = factor(Q004P, levels=c(1,2), labels=c("Sim","Não")))
+
+pns2019.1 <- rename_with(pns2019.1,tolower)
+pns2019.1 <- pns2019.1 %>% mutate(one = 1)
+
+pns2019.1 <- pns2019.1 %>% 
+  mutate(w00103 = as.numeric(w00103), w00203 = as.numeric(w00203), 
+         p00104 = as.numeric(p00104), p00404 = as.numeric(p00404)) %>%
+   mutate(imc = w00103/(w00203/100*w00203/100)) 
+# só moradores com 18 anos ou mais - consistente com a PNS 2013
+#pns_design_srvyr <-subset(pns_design_srvyr, c008 >= 18)
+# as variaveis w00103 e w00203 (peso e altura medidos) estão com muitos NAs.
+# vou utilizar o peso e altura informado pelo participante para os calculos
+pns2019.1 <- pns2019.1 %>%
+  #filter(!is.na(p00104), !is.na(p00404)) %>%
+  mutate(imci = p00104/(p00404/100*p00404/100))
+```
+
+<!--
+sobre a notação de intervalos para a função cut:
+
+do site https://www.basic-mathematics.com/interval-notation.html
+Then, the open interval (a,b) represents the set of all real numbers between a and b, except a and b.
+The closed interval [a,b] represents the set of all real numbers between a and b, including a and b.
+Sometimes, the interval may contain only one of its endpoints. In this case, the interval is half-open. The interval [2, 8) is half-open. It contains 2 and all numbers between 2 and 8. Notice that 8 is not included since the interval is open at 8.
+
+aqui uma explicação detalhada também https://r-coder.com/cut-r/
+algumas observações:
+- Changing arguments right and include.lowest can lead to mistakes, so we recommend changing the values of the breaks argument instead of the others.
+
+-->
+
+```{r criavars2}
+pns2019.1 <- pns2019.1%>% 
+   mutate(imcclass = case_when(imc < 17.0 ~ "1",
+                               imc >= 17.0 & imc < 18.5 ~ "2",
+                               imc >= 18.5 & imc < 25.0 ~ "3",
+                               imc >= 25.0 & imc < 30.0 ~ "4",
+                               imc >= 30.0 & imc < 35.0 ~ "5",
+                               imc >= 35.0 & imc < 40.0 ~ "6",
+                               imc >= 40.0 ~ "7",
+                               TRUE ~ "Nenhum"
+        ))
+
+pns2019.1 <- pns2019.1 %>% 
+   mutate(imcclassi = case_when(imci < 17.0 ~ "1",
+                               imci >= 17.0 & imci < 18.5 ~ "2",
+                               imci >= 18.5 & imci < 25.0 ~ "3",
+                               imci >= 25.0 & imci < 30.0 ~ "4",
+                               imci >= 30.0 & imci < 35.0 ~ "5",
+                               imci >= 35.0 & imci < 40.0 ~ "6",
+                               imci >= 40.0 ~ "7",
+                               TRUE ~ "Nenhum"
+        )) %>%
+  mutate(imcclass2 = case_when(imci < 25 ~ "Low/Normal (<25)",
+                               imci >= 25.0 & imci < 30.0 ~ "Overweight (25-29.9)",
+                               imci >= 30.0 ~ "Obesity (>30)",
+                               TRUE ~ "Missing Data"
+        ))
+
+pns2019.1 <- pns2019.1 %>% mutate(imcclass2 = ordered(imcclass2,
+                               levels = c("Low/Normal (<25)", "Overweight (25-29.9)", "Obesity (>30)", "Missing Data")))
+
+pns2019.1 <- pns2019.1 %>% mutate(idade = as.numeric(c008))
+pns2019.1 <- pns2019.1 %>% 
+     mutate(fxetaria = case_when(idade <   5.0 ~ "2",
+                                 idade >=  5.0 & idade < 10.0 ~ "7",
+                                 idade >= 10.0 & idade < 15.0 ~ "12",
+                                 idade >= 15.0 & idade < 20.0 ~ "18",
+                                 idade >= 20.0 & idade < 25.0 ~ "22",
+                                 idade >= 25.0 & idade < 40.0 ~ "32",
+                                 idade >= 40.0 & idade < 60.0 ~ "50",
+                                 idade >= 60.0 ~ "60"))
+pns2019.1 <- pns2019.1 %>% 
+     mutate(fxetaria2 = case_when(idade < 18.0 ~ "<18",
+                                  idade >= 18.0 & idade < 25.0 ~ "18-24",
+                                  idade >= 25.0 & idade < 35.0 ~ "25-34",
+                                  idade >= 35.0 & idade < 45.0 ~ "35-44",
+                                  idade >= 45.0 & idade < 55.0 ~ "45-54",
+                                  idade >= 55.0 & idade < 65.0 ~ "55-64",
+                                  idade >= 65.0 ~ "65+")) %>%
+     mutate(age = cut(idade,breaks = c(-0.01,17.9,24.9,34.9,44.9,54.9,64.9,Inf),
+                      labels = c("<18","18-24","25-34","35-44","45-54","55-64","65+")))
+
+# faixas do IBGE na publicação PNS 2019
+#De 18 a 29 anos
+#De 30 a 59 anos
+#De 60 a 64 anos
+#De 65 a 74 anos
+#De 75 anos ou mais
+pns2019.1 <- pns2019.1 %>%
+  mutate(fxetaria3 = case_when(idade < 18.0 ~ "<18",
+                               idade >= 18.0 & idade < 30.0 ~ "18-29",
+                               idade >= 30.0 & idade < 60.0 ~ "30-59",
+                               idade >= 60.0 & idade < 65.0 ~ "60-64",
+                               idade >= 65.0 & idade < 75.0 ~ "65-74",
+                               idade >= 75.0 ~ "75+"))
+
+pns2019.1 <- pns2019.1 %>% mutate(fxetaria = ordered(fxetaria, 
+            levels = c("2","7","12","18","22","32","50","60")))
+pns2019.1 <- pns2019.1 %>% mutate(fxetaria2  = ordered(fxetaria2, 
+            levels = c("18-24", "25-34", "35-44", "45-54", "55-64", "65+")))
+pns2019.1 <- pns2019.1 %>% mutate(fxetaria3 = ordered(fxetaria3,
+                                      levels = c("<18","18-29","30-59","60-64","65-74","75+")))
+
+
+
+
+
+# Criando uma variavel de faixa de escolaridade
+
+# d009001
+# 01	Creche
+# 02	Pré-escola 
+# 03	Classe de alfabetização – CA 
+# 04	Alfabetização de jovens e adultos
+# 05	Antigo primário (elementar)
+# 06	Antigo ginasial (médio 1º ciclo)
+# 07	Regular do ensino fundamental ou do 1º grau 
+# 08	Educação de jovens e adultos (EJA) ou supletivo do ensino fundamental
+# 09	Antigo científico, clássico etc. (médio 2º ciclo)
+# 10	Regular do ensino médio ou do 2º grau
+# 11	Educação de jovens e adultos (EJA) ou supletivo do ensino médio
+# 12	Superior – graduação
+# 13	Especialização de nível superior (duração mínima de 360 horas)
+# 14	Mestrado
+# 15	Doutorado
+# 99	Ignorado
+# 	Não aplicável
+
+# Ensino Elementar (Fundamental I) - incompleto (01,02,03,04,05,99,NA)
+# Ensino Elementar (Fundamental II) - até o ginásio/fundamental II (06,07,08)
+# Ensino Médio (Completo) - antigo científico (09,10,11)
+# Ensino Superior Completo - (12,13,14,15)
+
+pns2019.1 <- pns2019.1 %>% 
+  mutate(d009s = as.character(d00901)) %>%
+  mutate(fx_esco = case_when(is.na(d009s) | d009s == "1" | d009s == "2" | d009s == "3" | 
+                               d009s == "4" | d009s == "5" | d009s == "99" ~ "IncElem", # elementar incompleto 
+                               d009s == "6" | d009s == "7" | d009s == "8" ~ "CompElem", # elementar completo
+                               d009s == "9" | d009s == "10" | d009s == "11" ~ "CompHiSc", # ensino médio
+                               d009s == "12" | d009s == "13" | d009s == "14" | 
+                               d009s == "15" ~ "CompHigher" ))
+  # mutate(fx_esc =  case_when(  d00901 == "01" | d00901 == "02" | d00901 == "03" | 
+  #                              d00901 == "05" | d00901 == "99" | is.na(d00901) ~ "IncElem", # ensino fund I
+  #                              d00901 == "06" | d00901 == "07" | d00901 == "08" ~ "CompElem", # ensino fund II
+  #                              d00901 == "09" | d00901 == "10" | d00901 == "11" ~ "CompHiSc", # ensino médio
+  #                              d00901 == "12" |  # ensino superior
+  #                              d00901 == "13" |  # especialização 360hr min
+  #                              d00901 == "14" |  # mestrado
+  #                              d00901 == "15" ~ "CompHigher" , #doutorado
+  #                              TRUE ~ "IncElem" )) # em branco, não aplicável vou jogar pra IncElem
+
+pns2019.1 <- pns2019.1 %>% mutate(fx_esco = ordered(fx_esco,
+            levels = c("IncElem","CompElem","CompHiSc","CompHigher")))
+
+# depois de quebrar a cabeça com a faixa de escolaridade, que não batia com resultados do artigo Evolução da Diabetes ...
+# descobri uma variável derivada, criada pelo IBGE, para indicar o nível de escolaridade dentro do sistema de 9 anos.
+# é a VDD004A; portanto vou recodificar a fx_esc para usar essa variável.
+# os níveis são:
+# 1	Sem instrução
+# 2	Fundamental incompleto ou equivalente
+# 3	Fundamental completo ou equivalente
+# 4	Médio incompleto ou equivalente
+# 5	Médio completo ou equivalente
+# 6	Superior incompleto ou equivalente
+# 7	Superior completo 
+# 	Não aplicável
+pns2019.1 <- pns2019.1 %>%
+  mutate(niv_esc  = as.character(vdd004a)) %>%
+  mutate(fx_esc = case_when(is.na(niv_esc) | niv_esc == "1" | niv_esc == "2" ~ "IncElem",
+                            niv_esc == "3" | niv_esc == "4" ~ "CompElem", 
+                            niv_esc == "5" | niv_esc == "6" ~ "CompHiSc",
+                            niv_esc == "7" ~ "CompHigher"))
+
+pns2019.1 <- pns2019.1 %>% mutate(fx_esc = ordered(fx_esc,
+            levels = c("IncElem","CompElem","CompHiSc","CompHigher")))
+
+
+# q030 variável de diagnostico de diabetes
+# Para poder analisar os que tem NA no `q030` vou criar uma nova variável onde os NAs receberão valor 4 "Missing".
+pns2019.1 <- pns2019.1 %>%
+   mutate(gender = case_when(c006 == 1 ~ "Male",
+                             c006 == 2 ~ "Female"))
+
+pns2019.1 <- pns2019.1 %>%
+  mutate(q03001 = as.character(q03001),
+        q03002 = as.character(q03002)) %>%
+  mutate(diabetes = case_when(gender == "Female" & q03002 == "1" ~ 2, # Gravidez
+                               q03001 == "1" ~ 1, #"Yes",
+                               q03001 == "2" ~ 3, #"No",
+                               q03001 == "9" ~ 4, #ignorado
+                               TRUE ~ 4, #"Missing"
+                               )) 
+
+
+pns2019.1 <- pns2019.1 %>%
+    mutate(RaceSkinColor = case_when(c009 == 1 ~ "White",
+                                   c009 == 2 ~ "Black",
+                                   c009 == 4 ~ "Mixed-race",
+                                   c009 == 3 ~ "Asian",
+                                   c009 == 5 ~ "Indigenous",
+                                   c009 == 9 ~ "Ignored",
+                                   TRUE ~ "Ignored"),
+         )
+
+pns2019.1 <- pns2019.1 %>% mutate(RaceSkinColor = ordered(RaceSkinColor,
+          levels = c("White","Black","Mixed-race","Asian","Indigenous","Ignored")))
+
+
+pns2019.1 <- pns2019.1 %>%
+    mutate(Hypertension = case_when(q00201 == 1 ~ "Yes",
+                                  TRUE ~ "No"))
+pns2019.1 <- pns2019.1 %>% mutate(Hypertension = ordered(Hypertension,levels = c("Yes","No")))
+
+```
+
+
+
+## Data preparation
+
+
+
+
+
+
+```{r }
+pes_sel_des <-
+    svydesign(
+     id = ~ upa_pns ,
+     strata = ~ v0024 ,
+     data = as.data.frame(pns2019.1) ,
+     weights = ~ v0029 ,
+     nest = TRUE
+)
+post_pop <- unique( pns2019.1[ c( 'v00293' , 'v00292' ) ] )
+names( post_pop ) <- c( "v00293" , "Freq" )
+# post-stratified design
+pns_design <- survey::postStratify( pes_sel_des , ~v00293 , post_pop )
+
+pns_design_srvyr <- as_survey_design(pns_design)
+
+```
+
+
+
+```{r eval = FALSE}
+rm(pes_sel_des)
+```
+
+
+```{r}
+svytable(~imcclassi, pns_design_srvyr, addNA = TRUE)
+```
+
+```{r}
+svytable(~imcclass2, pns_design_srvyr, addNA = TRUE)
+```
+
+
+```{r}
+svyhist(~p00104, pns_design_srvyr)
+```
+
+Todos os valores de peso (w00103) e altura (w00203) são NA.
+```{r}
+sum(!is.na(pns_design_srvyr$variables$w00103))
+```
+```{r}
+sum(!is.na(pns_design_srvyr$variables$w00203))
+```
+
+
+
+
+```{r}
+
+#  mutate(diabetes2 = if_else(gender == "Female" & q03002 == "1" & q03001 == "1", 2, 
+#                       if_else(gender == "Female" & q03002 == "2" & q03001 == "1", 1,
+#                         if_else(gender == "Male" & q03001 == "1", 1,
+#                           if_else(gender == "Male" & q03001 == "2", 3,
+#                             if_else(gender == "Female" & q03002 == "2" & q03001 == "2", 3, 4))))))
+#                               if_else(q03001 == "9" | q03002 == "9" | is.na(q03001) | is.na(q03002), 4, 4)))))))
+#pns_design_srvyr <- pns_design_srvyr %>%
+#  mutate(diabetes = case_when(gender == "Female" & q03002 == 1 ~ 2, # Gravidez
+#                              diabetes == 1 ~ 1, # Yes
+#                              diabetes == 3 ~ 3, # No
+#                              diabetes == 4 ~ 4, # Missing ou ignorado
+#                              TRUE ~ diabetes))
+
+round(svytable(~ diabetes, subset(pns_design_srvyr, c008>=18), addNA = TRUE, Ntotal = 100),4)
+# não vou transformar em fator .. não é necessário
+#pns_design_srvyr$variables$diabetes <- ordered(pns_design_srvyr$variables$diabetes, levels = c(0, 1, 2, 3, 4), labels = c("Not Applicable","Yes","Pregnancy","No", "Missing"))
+
+svytable(~q02901, subset(pns_design_srvyr, c008>=18), addNA = TRUE, Ntotal = 100)
+```
+
+Os que nunca fizeram exame (q02901 == 6) estão como 4 em "diabetes".
+
+```{r}
+svytable(~gender, subset(pns_design_srvyr, c008>=18), Ntotal = 100)
+```
+
+```{r}
+table(pns_design_srvyr$variables$diabetes)
+```
+
+
+```{r}
+table(pns_design_srvyr$variables$q004p)
+```
+```{r}
+svytable(~q03002, subset(pns_design_srvyr, c008 >= 18), addNA = TRUE)
+```
+
+```{r}
+svytable(~q03001, subset(pns_design_srvyr, c008 >= 18 & gender == "Male"), addNA = TRUE)
+```
+
+```{r}
+svytable(~q03001, subset(pns_design_srvyr, c008 >= 18 & gender == "Female"), addNA = TRUE)
+```
+
+
+```{r}
+svytable(~q03001, subset(pns_design_srvyr, c008 >= 18 & gender == "Female" & q03002 == "2" & q03001 == "1"), addNA = TRUE)
+```
+
+```{r}
+svytable(~q03001, subset(pns_design_srvyr, c008 >= 18 & gender == "Female" & q03002 == "1" & q03001 == "1"), addNA = TRUE)
+```
+
+
+
+```{r}
+svyby(~q03001, ~q03002, subset(pns_design_srvyr, c008 >= 18), svytotal, vartype = "ci", na.rm = TRUE)
+```
+
+```{r}
+svytable(~diabetes, subset(pns_design_srvyr, c008 >= 18), addNA = TRUE, Ntotal = 100)
+```
+```{r}
+svytable(~q004p, subset(pns_design_srvyr, c008 >= 18), addNA = TRUE, Ntotal = 100)
+```
+
+
+```
+Em 2019, a Pesquisa Nacional de Saúde estimou que no Brasil 7,7% da população de
+18 anos ou mais de idade referiram diagnóstico médico de diabetes (em 2013, 6,2%), o
+equivalente a um contingente de 12,3 milhões de pessoas
+```
+
+Para que o resultado esteja coerente com a PNS 2013 e com as publicações do IBGE/Fiocruz, é preciso filtrar a idade do morador para 18 anos ou mais. 
+Publicação do IBGE (Volume 3 – Percepção do estado de saúde, estilos de vida, doenças crônicas e saúde bucal - https://www.pns.icict.fiocruz.br/wp-content/uploads/2021/02/liv101764.pdf) que indica 7.7% de pessoas com diabetes (pg. 59)
+
+
+```{r}
+svytable(~diabetes, subset(pns_design_srvyr, c008>=18), addNA = TRUE)
+```
+
+Conferindo população total da pesquisa, maior de 18 anos.
+
+```{r}
+desPNSQ18=subset(pns_design_srvyr, c008>=18)
+```
+
+```{r}
+todos <- svytable(~one, desPNSQ18)
+todos
+```
+
+
+```{r}
+diabetes.df <- svyby(~one, ~diabetes, desPNSQ18, svytotal, vartype = "se", keep.names = F)
+diabetes.df <- diabetes.df %>% 
+    mutate(diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         )) %>%
+   mutate(Perc = round(one/todos*100,2),PercSE = round(se/todos*100,2)) %>%
+   rename(Diabetes=diabetes,Population=one,SE=se) 
+bind_rows(diabetes.df, tibble(Diabetes=NA, Population = round(sum(diabetes.df$Population),1), SE = NA, Perc = round(sum(diabetes.df$Perc),1), PercSE = NA)) %>% flextable() %>% autofit()
+```
+
+
+
+
+```{r}
+svyby( ~q004p , ~gender , desPNSQ18 , svymean,vartype= "ci") %>% flextable()
+```
+Esse resultado bate com a publicação do IBGE (op.cit), na página 60
+
+tbl_strata_ex1 <-
+  trial %>%
+  select(age, grade, stage, trt) %>%
+  mutate(grade = paste("Grade", grade)) %>%
+  tbl_strata(
+    strata = grade,
+    .tbl_fun =
+      ~ .x %>%
+        tbl_summary(by = trt, missing = "no") %>%
+        add_n(),
+    .header = "**{strata}**, N = {n}"
+  )
+```{r}
+desPNSQ18 %>% select(q004p, gender) %>%
+  tbl_strata(
+    strata = gender,
+    .tbl_fun = 
+      ~ .x %>%
+      tbl_svysummary(by = q004p, percent = "row") %>%
+      add_n(),
+    .header = "**{strata}**, N = {n}"
+  )
+```
+
+
+```{r tab.cap = "PNS 2019 - Já teve diagnóstico de diabetes?"}
+desPNSQ18 %>% 
+  select(q004p,gender) %>%
+  tbl_svysummary(by = q004p, percent = "row")
+```
+
+
+
+```
+As mulheres (8,4%) apresentaram maior proporção de relato de diagnóstico de
+diabetes que os homens (6,9%).
+```
+
+
+```{r}
+svytable(~diabetes, desPNSQ18, Ntotal = 100)
+```
+
+```{r}
+svyby(~q004p,~gender, desPNSQ18, svymean, vartype = c("ci","se"))
+```
+
+## Decisão sobre codificação da diabetes
+
+Depois de quebrar a cabeça com a codificação correta da diabetes gestacional na PNS 2019, penso que será melhor simplesmente considerá-la como *não diabetes* nas estatísticas, assim como faz o IBGE. Pelos resultados que encontrei no livro do IBGE e no notebook da Fiocruz, a diabetes gestacional é considerada como não diabetes na estatística da PNS 2019.
+
+Update: 20221021
+O algoritmo de risco leva em conta se houve diabetes gestacional; se desconsiderar isso, não vou poder usar a variável `diabetes` para aplicar o algoritmo.
+
+```{r}
+pns_design_srvyr <- pns_design_srvyr %>%
+  mutate(q03001 = as.character(q03001),
+        q03002 = as.character(q03002)) %>%
+  mutate(diabetes = case_when(gender == "Female" & q03002 == "1" ~ 2, # Gravidez -> No
+                               q03001 == "1" ~ 1, #"Yes",
+                               q03001 == "2" ~ 3, #"No",
+                               q03001 == "9" ~ 4, #ignorado
+                               TRUE ~ 4, #"Missing"
+                               ))
+```
+
+Pegando novamente o subconjunto 18+ anos depois de recodificar a variável `diabetes`
+
+```{r}
+desPNSQ18=subset(pns_design_srvyr, c008>=18)
+```
+
+```{r}
+svytable(~diabetes, desPNSQ18, addNA = TRUE, Ntotal = 100)
+```
+
+```{r}
+comdiabetes19 <- svytable(~diabetes, desPNSQ18, addNA = TRUE)
+comdiabetes19 <- as_tibble(comdiabetes19)
+comdiabetes19 <- as.numeric(round(comdiabetes19[1,2], 0))
+```
+
+```{r}
+svytable(~q02901, subset(pns_design_srvyr, c008>=18), addNA = TRUE, Ntotal = 100)
+```
+
+O número de pessoas que nunca fizeram o exame de glicemia (q02901 == 6) bate com a codificação diabetes == 4.
+
+
+### Homens
+
+```{r}
+svytable(~diabetes, subset(desPNSQ18, gender == "Male"), addNA = TRUE)
+svytable(~diabetes, subset(desPNSQ18, gender == "Male"), addNA = TRUE, Ntotal = 100)
+```
+
+
+### Mulheres
+
+```{r}
+svytable(~diabetes, subset(desPNSQ18, gender == "Female"), addNA = TRUE)
+svytable(~diabetes, subset(desPNSQ18, gender == "Female"), addNA = TRUE, Ntotal = 100)
+```
+
+
+
+```{r}
+table(pns_design_srvyr$variables$gender)
+```
+
+Estes números batem com os apresentados pela Fiocruz no notebook R no site.
+
+
+```{r}
+todos <- svytable(~one, pns_design_srvyr)
+todos
+```
+
+```{r}
+todos18 <- svytable(~one, desPNSQ18)
+todos18
+```
+
+
+```{r}
+diabetes.df <- svyby(~one, ~diabetes, desPNSQ18, svytotal, vartype = c("se","ci"), keep.names = F)
+diabetes.df <- diabetes.df %>% 
+   mutate(Perc = round(one/todos18*100,2),PercSE = round(se/todos18*100,2), Perci_l = round(ci_l/todos18*100,2), Perci_u = round(ci_u/todos18*100,2)) %>%
+   rename(Diabetes=diabetes,Population=one,SE=se) %>%
+  select(Diabetes, Population, Perc, PercSE, Perci_l, Perci_u)
+bind_rows(diabetes.df, tibble(Population = round(sum(diabetes.df$Population),1),  Perc = round(sum(diabetes.df$Perc),1))) %>% flextable()
+```
+
+```{r}
+round(svytable(~ diabetes, desPNSQ18, addNA = TRUE, Ntotal = 100), 2)
+```
+
+Apenas os que já tiveram diagnóstico de diabetes (Sim, Não, Gravidez)
+
+```{r}
+df_na <- desPNSQ18 %>%
+  filter(diabetes != 4)
+```
+
+
+```{r}
+com_diag <- svytable(~one, df_na)
+com_diag
+```
+
+
+```{r}
+todos <- svytable(~one, desPNSQ18)
+todos
+```
+
+```{r}
+todos - com_diag
+```
+
+
+
+
+```{r}
+#Separando a base de dados
+
+#df = pns_design_srvyr[ ,c("c006", "c009", "fx_esc", "w00103", "w00203","p028", "p034", "p035", "p050", "q002", "q029", "q060", "q068", "q124", "fxetaria", "fxetaria2", "idade", "imc", "q030", "one", "uf","diabetes", "imcclass")]
+
+#names(df$variables) = c("sexo_c006","cor_raca_c009", "faixa_escolaridade", "peso_w00103", "altura_w00203", "bebida_alcoolica_p028", "pratic_ativ_fisica_p034", "dias_semana_ativ_fisica_p035", "fumante_p050", "pressao_alta_q002", "exames_glicemia_q029", "colesterol_alto_q060", "avc_q068", "insuficiencia_renal_q124", "fxetaria", "fxetaria2", "idade", "imc", "diagnostico_diabetes_q030", "one", "uf","diabetes", "imcclass")
+
+df <- select(desPNSQ18, sexo_c006=c006, cor_raca_c009 = c009, fx_esc,
+             peso_w00103=w00103, altura_w00203=w00203, peso_p00104 = p00104, 
+             altura_p00404 = p00404, bebida_alcoolica_p028 = p02801,
+             frutas_p018=p018, refri_sucos_p020=p02002, 
+             doces_p025=p02501, lanches_p026=p02602,
+             pratic_ativ_fisica_p034 = p034, dias_semana_ativ_fisica_p035 = p035,
+             fumante_p050 = p050, pressao_alta_q002 = q00201, 
+             exames_glicemia_q029 = q02901, colesterol_alto_q060 = q060, 
+             avc_q068 = q068, insuficiencia_renal_q124 = q124, 
+             fxetaria, fxetaria2, fxetaria3, idade, imc=imci, 
+             diagnostico_diabetes_q030 = q03001, one, uf, diabetes, regiao,
+             imcclass=imcclassi, q03002, RaceSkinColor, Hypertension, gender, imcclass2, age)
+
+
+#sexo_c006
+#fumante_p050
+#pressao_alta_q002
+#colesterol_alto_q060
+#avc_q068
+#insuficiencia_renal_q124
+# Consumo de Frutas (p018) - 
+#      Em quantos dias da semana o(a) Sr(a) costuma comer frutas? 
+#      (0 = Nunca ou menos de uma vez por semana)
+# Refrigerante ou Suco de caixinha (p02002) - 
+#      Em quantos dias da semana o(a) Sr(a) costuma tomar refrigerante 
+#      (ou suco artificial)? 
+#      (0 = Nunca ou menos de uma vez por semana)
+# Doces e Consumo de açúcar (p02501) - 
+#      Em quantos dias da semana o(a) Sr(a) come alimentos doces, tais como 
+#      pedaços de bolo ou torta, doces, chocolates, balas, biscoitos ou 
+#      bolachas doces? (0 = Nunca ou menos de uma vez por semana)
+# Substitui refeição por lanches (p02602) - 
+#      Em quantos dias da semana o(a) Sr(a) substitui a refeição do almoço ou 
+#      jantar por sanduiches, salgados ou pizzas?  
+#      (0 = Nunca ou menos de uma vez por semana)
+
+#df <- subset(df, !is.na(diabetes) & !is.na(pressao_alta_q002)  & !is.na(colesterol_alto_q060), !is.na(peso_w00103), !is.na(imc))
+```
+
+Total population for modeling
+
+```{r}
+svytable(~one, df)
+```
+
+```{r}
+df <- select(df, -diagnostico_diabetes_q030)
+```
+
+```{r eval = FALSE}
+verificacao <- as.data.frame(svytable(~ diabetes , df, addNA = TRUE, Ntotal = 1))
+verificacao
+```
+
+```{r eval = FALSE}
+sum(verificacao$Freq)
+```
+
+```{r}
+apply(df$variables, 2, function(x) sum(is.na(x)))
+```
+
+
+Perguntas da Avaliação de Risco:
+1. What’s your age?
+2. Are you a man or a woman?
+3. If woman, have been diagnosed with gestational diabetes?
+4. Any relative (mother, father, sister or brother) with diabetes?
+5. High blood pressure diagnosis?
+6. Physically active?
+7. What is your weight status? Points based on height and weight ranges.
+
+
+
+
+```{r}
+sum(is.na(df$variables$dias_semana_ativ_fisica_p035))
+```
+
+```{r}
+svytable(~ dias_semana_ativ_fisica_p035, df, addNA = TRUE)
+```
+
+```{r}
+svytable(~ pratic_ativ_fisica_p034, df, addNA = TRUE)
+```
+Na questão `p034`, o **1** significa que praticou atividade física nos últimos três meses; o **2** não praticou.
+
+```{r}
+svytable(~ dias_semana_ativ_fisica_p035 + pratic_ativ_fisica_p034, df, addNA = TRUE)
+```
+
+
+Juntando a informação da P034 e da P035 podemos ver que os `NAs` que aparecem na P035 podem ser considerados como *Não praticou atividade física*, ou seja, podemos atribuir 0 aos `NAs`.
+
+```{r}
+df <- df %>%
+   mutate(ativ_fisica = as.integer(dias_semana_ativ_fisica_p035)) %>%
+   mutate(ativ_fisica = case_when(ativ_fisica == 0 ~ 0,
+                                  ativ_fisica == 1 ~ 1,
+                                  ativ_fisica == 2 ~ 2,
+                                  ativ_fisica == 3 ~ 3,
+                                  ativ_fisica == 4 ~ 4,
+                                  ativ_fisica == 5 ~ 5,
+                                  ativ_fisica == 6 ~ 6,
+                                  ativ_fisica == 7 ~ 7,
+                                  TRUE ~ 0))
+```
+
+```{r}
+svytable(~ ativ_fisica, df)
+```
+
+Vou definir a variável `prat_ativ` como 0 para quem pratica atividade física menos de 3 vezes/semana e 1 para quem pratica três vezes ou mais na semana.
+
+```{r}
+df <- df %>% 
+   mutate(prat_ativ = case_when(ativ_fisica == 0 ~ 0, # Nenhuma vez
+                     ativ_fisica == 1 ~ 0, # Uma vez/semana
+                     ativ_fisica == 2 ~ 0, # Duas vezes/semana
+                     ativ_fisica == 3 ~ 1, # Três vezes/semana
+                     ativ_fisica == 4 ~ 1, # Quatro vezes/semana
+                     ativ_fisica == 5 ~ 1, # Cinco vezes/semana
+                     ativ_fisica == 6 ~ 1, # Seis vezes/semana
+                     ativ_fisica == 7 ~ 1, # Sete vezes/semana
+                     ))
+
+```
+
+
+## Risc Assessment Algorithm
+
+
+
+```{r}
+diab_tot <- as.data.frame(svytable(~ diabetes, df,  addNA = TRUE, Ntotal = 1)) 
+diab_tot
+```
+
+
+### Inspecting NAs
+
+```{r}
+apply(df$variables, 2, function(x) sum(is.na(x)))
+```
+
+Dos resultados acima, podemos descartar algumas variáveis que não utilizaremos já que foram tratadas: `pratic_ativ_fisica_p034` e  `dias_semana_ativ_fisica_p035`.
+
+```{r}
+df <- select(df, -pratic_ativ_fisica_p034, -dias_semana_ativ_fisica_p035)
+```
+
+```{r}
+apply(df$variables, 2, function(x) sum(is.na(x)))
+```
+
+```{r}
+tlbpeso <- as.data.frame(svytable(~peso_p00104, df, addNA=TRUE))
+tlbpeso
+sum(tlbpeso$Freq)
+```
+
+
+Removendo as observações sem informação de peso e altura.
+
+```{r}
+#df <- subset(df, !is.na(as.numeric(imc)))
+```
+
+```{r}
+apply(df$variables, 2, function(x) sum(is.na(x)))
+```
+
+
+Proporção de dados faltantes (peso e altura):
+
+Por estados
+
+```{r}
+desPNSQ18 <- desPNSQ18 %>%
+  mutate(faltapeso = case_when(is.na(p00104) ~ 1,
+                               TRUE ~ 0),
+         faltaalt = case_when(is.na(p00404) ~ 1,
+                              TRUE ~ 0))
+```
+
+```{r}
+# altura auto declarada
+xalt <- as.data.frame.table(svytable(~uf + faltaalt, desPNSQ18, addNA = TRUE))
+xalt2 <- left_join(filter(xalt,faltaalt == 1), filter(xalt, faltaalt == 0), by = "uf") %>% 
+  select(-faltaalt.x,-faltaalt.y,TemAlt=Freq.y,FaltaAlt=Freq.x) #%>% 
+xalt2 %>%  rowwise() %>% 
+  mutate(`% NA` = round(FaltaAlt/(TemAlt+FaltaAlt)*100,2)) %>% 
+  #select(-Falta,-Tem) %>%
+  ungroup() %>% 
+  arrange(as.character(uf)) %>% 
+  flextable()
+```
+
+```{r}
+# peso auto declarado
+xpeso <- as.data.frame.table(svytable(~uf + faltapeso, desPNSQ18, addNA = TRUE))
+xpeso2 <- left_join(filter(xpeso,faltapeso == 1), filter(xpeso, faltapeso == 0), by = "uf") %>% 
+  select(-faltapeso.x,-faltapeso.y,TemPeso=Freq.y,FaltaPeso=Freq.x) # %>% 
+xpeso2 %>%  rowwise() %>% 
+  mutate(`% NA` = round(FaltaPeso/(TemPeso+FaltaPeso)*100,2)) %>% 
+#  select(-Falta,-Tem) %>%
+  ungroup() %>% 
+  arrange(as.character(uf)) %>% 
+  flextable()
+```
+
+Faltam as mesmas quantidades e nas mesmas observações.
+
+```{r}
+left_join(xalt2, xpeso2, by = "uf") %>% 
+  arrange(as.character(uf)) %>% 
+  flextable()
+```
+
+
+
+
+
+
+Por Faixa Etária 2
+
+```{r}
+as.data.frame(round(svytable(~fxetaria2, subset(desPNSQ18, is.na(p00404)), addNA = TRUE, Ntotal = 100),2))
+```
+```{r}
+as.data.frame(round(svytable(~age, subset(desPNSQ18, is.na(p00404)), addNA = TRUE, Ntotal = 100),2))
+```
+
+
+
+Por IMC
+
+```{r}
+as.data.frame(round(svytable(~imcclass2, desPNSQ18, addNA = TRUE, Ntotal = 100),2))
+```
+
+
+
+```{r}
+df_risco <- read_csv("ADAalgorithmRiskAssessmnt.csv", 
+    locale = locale(decimal_mark = ",")) %>% rename(altura=Altura)
+```
+
+```{r}
+df_risco_show = df_risco
+df_risco_show = within(df_risco_show,  V1 <- paste(V1.inf, V1.sup, sep="-"))
+df_risco_show = within(df_risco_show,  V2 <- paste(V2.inf, V2.sup, sep="-"))
+df_risco_show = within(df_risco_show,  V3 <- paste(V3, "+",sep=""))
+df_risco_show = df_risco_show[c("altura", "V1", "V2", "V3")]
+df_risco_show
+```
+
+### Computing points
+
+#### Altura
+
+```{r}
+df_risco$altura = df_risco$altura * 100
+```
+
+```{r}
+pegar_altura_tab <- function(df){
+    
+    alt = as.numeric(df["altura_p00404"])
+    
+    if (is.na(alt)){
+       #cat("Erro, altura NA\n")
+       n_alt <- NA
+       return(n_alt)
+    }
+    
+    n_alt = 0   
+    for (alt_tab in df_risco$altura){
+        if (alt <= alt_tab){
+            n_alt = alt_tab
+            break
+        }
+    }
+    if (n_alt == 0){
+        n_alt = 193
+    }
+   
+   return(n_alt)
+}
+```
+
+
+```{r}
+df$variables$altura_tab <- apply(df$variables, 1, pegar_altura_tab)
+```
+
+```{r}
+svytable(~altura_tab, df, addNA=TRUE)
+```
+
+```{r}
+round(svytable(~altura_p00404, df, addNA = TRUE), 1)
+```
+
+Mesmo número de NAs.
+
+#### Peso
+
+```{r}
+pegar_pontos_peso <- function(df){
+    
+    alt = as.numeric(df["altura_tab"])
+    peso = as.numeric(df["peso_p00104"])
+    
+    if (!is.na(alt) & length(df_risco[df_risco$altura == alt, "altura"]) > 0){
+    
+        tab_risco = df_risco[df_risco$altura == alt, ]
+        
+        if((peso >= tab_risco["V1.inf"]) & (peso <= tab_risco["V1.sup"])){
+            return(1)
+        } else if((peso >= tab_risco["V2.inf"]) & (peso <= tab_risco["V2.sup"])){
+            return(2)
+        } else if((peso >= tab_risco["V3"])){
+            return(3)
+        } else{
+            return(0)
+        }
+
+    } else{
+       if (is.na(alt)) {
+          return(NA)
+       }
+        return (0)
+    }
+
+}
+```
+
+
+
+```{r}
+df$variables$pontos_alt_peso <- apply(df$variables, 1, pegar_pontos_peso)
+```
+
+```{r}
+svytable(~pontos_alt_peso, df, addNA=TRUE)
+```
+
+```{r}
+round(svytable(~peso_p00104, df, addNA=TRUE),1)
+```
+
+
+#### Idade
+
+
+```{r}
+df <- df %>% 
+     mutate(pontos_idade = case_when(idade < 40 ~ 0,
+                                     idade <= 49 ~ 1,
+                                     idade <= 59 ~ 2,
+                                     idade >= 60 ~ 3,
+                                     TRUE ~ 10))
+```
+
+```{r}
+svytable(~pontos_idade, df, addNA = TRUE)
+```
+
+
+#### Sexo
+
+
+```{r}
+df <- df %>% 
+     mutate(pontos_sexo = case_when(sexo_c006 == "masculino" ~ 1,
+                                    TRUE ~ 0))
+```
+
+
+#### Diabetes Gestacional
+
+```{r}
+df <- df %>% 
+     mutate(pontos_sgrav = case_when(diabetes == "2" ~ 1,
+                                    TRUE ~ 0))
+```
+
+
+#### Hipertensão
+
+```{r}
+df <- df %>% 
+     mutate(pontos_hipertensao = case_when(pressao_alta_q002 == "1" ~ 1,
+                               TRUE ~ 0))
+```
+
+```{r}
+table(df$variables$prat_ativ)
+```
+
+#### Atividade Física
+
+```{r}
+df <- df %>% 
+     mutate(pontos_atv_fisica = case_when(prat_ativ == 1 ~ 0,
+                               TRUE ~ 1))
+```
+
+
+```{r}
+svytable(~pontos_alt_peso, df, addNA = TRUE)
+```
+
+```{r}
+sum(svytable(~pontos_alt_peso, df, addNA = TRUE))
+```
+
+
+#### Totalização Pontos
+
+```{r}
+df <- df %>% 
+     mutate(pontos = pontos_idade + pontos_sexo + pontos_sgrav + pontos_hipertensao + pontos_atv_fisica + pontos_alt_peso)
+```
+
+```{r}
+df$pontos = as.numeric(df$pontos)
+df <- df %>% 
+     mutate(risco = case_when(pontos >= 5 ~ 1,
+                               pontos < 5 ~ 0))
+```
+
+
+Visualizando onde estão os NAs e como serão tratados nas discussões
+
+Removendo NAs do risco e pontos
+
+```{r}
+teste <- as.data.frame(survey::svytable(~ risco + pontos, df, exclude = NULL, na.action = na.pass))
+teste %>% filter(!is.na(risco) & !is.na(pontos))
+```
+
+Visualizando NAs em risco e/ou pontos
+
+```{r}
+teste %>% filter(is.na(risco),  is.na(pontos))
+```
+
+Ou seja, os mesmos 1.611.435 que estão faltando dados de peso e altura estão aqui como NAs em risco e pontos. Este número vai aparecer no final das análises.
+
+
+Validação
+
+
+```{r}
+dim(df$variables[df$variables$pontos >= 5 & df$variables$risco == 0, c("pontos","risco") ])
+```
+
+Não existe nenhuma observação que tenha pontos $>=$ 5 e risco 0; apenas os 800 valores com NA em peso e altura aparecem aqui.
+
+
+
+Número total de pessoas com risco aumentado para diabetes
+
+```{r}
+ptsr1 <- sum(teste[teste$risco == 1, "Freq"], na.rm = T)
+ptsr1
+```
+```{r}
+ptsr0 <- sum(teste[teste$risco == 0, "Freq"], na.rm = T)
+ptsr0
+```
+
+```{r}
+ptsNA <- sum(teste[is.na(teste$risco), "Freq"], na.rm = T)
+ptsNA
+```
+
+```{r}
+ptstt <- sum(teste[,"Freq"], na.rm = T)
+ptstt
+```
+```{r}
+round(ptstt - ptsNA - ptsr0 - ptsr1, 3)
+```
+
+
+
+```{r}
+pontos_gerais <- as.data.frame(survey::svytable(~ risco + pontos + diabetes, df, addNA = TRUE))
+pontos_gerais
+```
+
+
+```{r}
+pontos_gerais$pontos = as.numeric(pontos_gerais$pontos)
+pontos_gerais[pontos_gerais$pontos >= 5 & pontos_gerais$risco == 0,]
+```
+
+
+
+essa conta aqui não tá fazendo muito sentido ... preciso ver o q significa.
+```{r eval = FALSE}
+pontos_gerais$pontos = as.numeric(pontos_gerais$pontos)
+sum(pontos_gerais[pontos_gerais$pontos >= 5,]$Freq, na.rm =T)
+```
+
+Mas aqui está correto: total de pessoas em risco de diabetes
+
+```{r}
+ptsgr1 <- sum(pontos_gerais[pontos_gerais$risco == 1, "Freq"], na.rm = T)
+ptsgr1
+```
+
+```{r}
+ptsgr0 <- sum(pontos_gerais[pontos_gerais$risco == 0, "Freq"], na.rm = T)
+ptsgr0
+```
+```{r}
+ptsgrNA <- sum(pontos_gerais[is.na(pontos_gerais$risco), "Freq"])
+ptsgrNA
+```
+
+```{r}
+ptsgrFreq <- sum(pontos_gerais$Freq, na.rm = T)
+ptsgrFreq
+```
+
+```{r}
+round(ptsgrFreq - ptsgr1 - ptsgr0 - ptsgrNA,3)
+```
+
+
+Pontos dos não diabéticos + os sem exame
+
+(1: diagnóstico de diabetes; 2: diabetes gestacional; 3: sem diagnóstico de diabetes; 4: não aplicável -- sem exame)
+
+```{r}
+pontos_n_diab = pontos_gerais[pontos_gerais$diabetes != 1 & pontos_gerais$diabetes != 2 & !is.na(pontos_gerais$diabetes) & !is.na(pontos_gerais$risco),]
+```
+
+```{r}
+qtd_n_diab = sum(pontos_n_diab$Freq, na.rm = T)
+qtd_n_diab
+```
+
+Quantidade de não diabéticos com exame e sem exame, com risco 
+
+```{r}
+qtd_risco = sum(pontos_n_diab[pontos_n_diab$risco == 1 & !is.na(pontos_n_diab$risco), "Freq"], na.rm = T)
+qtd_risco
+```
+
+```{r}
+qtd_risco / qtd_n_diab
+```
+
+```{r}
+sum(pontos_n_diab[pontos_n_diab$risco == 0 & !is.na(pontos_n_diab$risco), "Freq"], na.rm = T)
+```
+
+Validando resultados acima (com exame sem diagnóstico e sem exames)
+
+```{r}
+pontos_n_diab <- as.data.frame(survey::svytable(~ risco, subset(df, diabetes != 1 & !is.na(risco)), addNA = TRUE))
+pontos_n_diab
+```
+
+
+```{r}
+sum(pontos_n_diab$Freq, na.rm = T)
+```
+
+
+
+Total de Não diabéticos (com exame)
+
+
+
+```{r}
+pontos_n_diab_c_exame = pontos_gerais[pontos_gerais$diabetes == 3 & !is.na(pontos_gerais$risco) ,]
+(qtd_n_diab_com_exame <- sum(pontos_n_diab_c_exame$Freq, na.rm = T))
+```
+
+```{r}
+pontos_gerais %>% filter(diabetes == 3 & !is.na(risco)) %>% 
+   group_by(diabetes, risco) %>%
+   summarise(Freq = sum(Freq, na.rm = T), Perc = round(Freq/qtd_n_diab_com_exame*100,2))
+```
+
+
+```{r tab.cap="Distribuição dos NAs do risco"}
+x <- pontos_gerais %>% 
+  group_by(diabetes, is.na(risco)) %>%
+   summarise(Freq = round(sum(Freq, na.rm = T),0)) %>%
+   filter(`is.na(risco)` == TRUE) %>% select(-`is.na(risco)`)
+x %>% adorn_totals() %>%
+flextable() %>% theme_booktabs()
+```
+
+```{r eval = FALSE}
+saveRDS(x, file = "distribuicaoNAsrisco2019_20230505.rds", compress = TRUE)
+```
+
+Gênero (com exame sem diagnóstico e sem exame)
+
+```{r}
+pontos_genero <- as.data.frame(survey::svytable(~ risco + sexo_c006, subset(df, diabetes != 1 & !is.na(risco)), addNA = TRUE))
+head(pontos_genero)
+```
+
+
+```{r}
+# masculino
+sum(pontos_genero[pontos_genero$sexo_c006 == 1 & pontos_genero$risco == 1,"Freq"], na.rm =T)
+```
+
+```{r}
+# feminino
+sum(pontos_genero[pontos_genero$sexo_c006 == 2 & pontos_genero$risco == 1,"Freq"], na.rm= T)
+```
+
+```{r}
+pontos_genero %>% filter(risco == 1 & !is.na(risco)) %>% 
+   group_by(sexo_c006) %>% 
+   summarise(freq = sum(Freq, na.rm = T), perc = round((Freq/qtd_risco)*100,1)) 
+```
+
+```{r}
+sum(pontos_genero$Freq, na.rm = T)
+```
+
+
+```{r}
+sum(pontos_genero[pontos_genero$risco == 1, ]$Freq, na.rm = T)
+```
+
+
+Faixa Etária 1 (com exame sem diagnóstico e sem exame)
+
+```{r}
+pontos_fxetaria <- as.data.frame(survey::svytable(~ risco + fxetaria, subset(df, diabetes != 1 & !is.na(risco)), exclude = NULL, na.action = na.pass))
+pontos_fxetaria
+```
+
+```{r}
+group_by(pontos_fxetaria[pontos_fxetaria$risco == 1,], fxetaria) %>% summarise(freq = sum(Freq, na.rm = T), perc = round((Freq/qtd_risco)*100,2)) 
+```
+
+
+```{r}
+sum(pontos_fxetaria$Freq, na.rm = T)
+```
+
+```{r}
+sum(pontos_fxetaria[pontos_fxetaria$risco == 1, ]$Freq, na.rm = T)
+```
+
+
+
+Faixa Etária 2 (com exame sem diagnóstico e sem exame)
+
+```{r}
+pontos_fxetaria2 <- as.data.frame(survey::svytable(~ risco + fxetaria2, subset(df, diabetes != 1 & !is.na(risco)), addNA = TRUE))
+pontos_fxetaria2
+```
+
+```{r}
+group_by(pontos_fxetaria2[pontos_fxetaria2$risco == 1,], fxetaria2) %>% summarise(freq = sum(Freq, na.rm = T), perc = round((Freq/qtd_risco)*100,2)) 
+```
+
+
+```{r}
+sum(pontos_fxetaria2$Freq, na.rm = T)
+```
+```{r}
+sum(pontos_fxetaria2[pontos_fxetaria2$risco == 1, ]$Freq, na.rm = T)
+```
+
+
+
+
+IMC (com exame sem diagnóstico e sem exame)
+
+
+```{r}
+pontos_imc <- as.data.frame(survey::svytable(~ risco + imcclass, subset(df, diabetes != 1 & !is.na(risco)), addNA = TRUE))
+pontos_imc
+```
+
+```{r}
+risco_imc = pontos_imc[pontos_imc$risco==1, ]
+risco_imc$Freq = round(risco_imc$Freq)
+risco_imc
+```
+
+```{r}
+sum(pontos_imc$Freq, na.rm = T)
+```
+
+```{r}
+sum(pontos_imc[pontos_imc$risco == 1, ]$Freq, na.rm = T)
+```
+
+
+
+```{r}
+gp_imc = group_by(pontos_imc[pontos_imc$risco==1, ], imcclass) %>% summarise(freq = sum(Freq, na.rm = T), perc = round((freq/qtd_risco)*100,2))
+gp_imc$freq = round(gp_imc$freq)
+gp_imc
+```
+
+Por Estados
+
+
+```{r}
+pontos_est <- as.data.frame(survey::svytable(~ risco + uf, subset(df, diabetes != 1 & !is.na(risco)), addNA = TRUE))
+pontos_est
+```
+
+```{r}
+risco_est = pontos_est %>% 
+   filter(risco==1) %>% 
+   mutate(Freq = round(Freq), perc = round(Freq/qtd_risco*100,1))
+risco_est
+```
+
+Exame há mais de 3 anos
+
+```{r}
+pontos_3a <- as.data.frame(survey::svytable(~ risco, subset(df, diabetes != 1 & diabetes != 2 & diabetes != 4 & exames_glicemia_q029 == "5" & !is.na(risco)), addNA = TRUE))
+pontos_3a
+```
+
+Sem exame
+
+
+```{r}
+svytable(~exames_glicemia_q029 + diabetes, df, exclude = NULL, na.action = na.pass)
+```
+
+```{r}
+svytable(~q02901 + q03001, pns_design_srvyr, addNA = TRUE)
+```
+Acho que não vou poder "remover" os NAs; é preferível deixá-los para não distorcer as análises; coisa chata esse `survey`!
+
+```{r}
+svytable(~diabetes, df)
+```
+
+
+```{r}
+pontos_0 <- as.data.frame(survey::svytable(~risco, subset(df, diabetes != "1" & exames_glicemia_q029 == "6"), exclude = NULL, na.action = na.pass))
+pontos_0
+```
+
+Quantidade de pessoas que nunca fizeram exame de glicemia e estão em risco
+
+```{r}
+qtd_risco_sem_exame <- pontos_0[pontos_0$risco == 1 & !is.na(pontos_0$risco), "Freq"]
+qtd_risco_sem_exame
+```
+
+Total de pessoas que nunca fizeram exame de glicemia
+
+```{r}
+sum(pontos_0$Freq)
+```
+
+
+Por Faixa Etária 2, que nunca fizeram exame
+
+```{r}
+pontos_0_fxetaria <- as.data.frame(survey::svytable(~ risco + fxetaria2, subset(df, exames_glicemia_q029 == "6" & !is.na(risco)), addNA = TRUE))
+pontos_0_fxetaria
+```
+
+```{r}
+sum(pontos_0_fxetaria$Freq)
+```
+
+```{r}
+sum(pontos_0_fxetaria[pontos_0_fxetaria$risco == 1,]$Freq, na.rm = T)
+```
+
+
+Por faixa etária, nunca fizeram exame, com risco aumentado
+
+```{r}
+gp0_fxetaria = pontos_0_fxetaria %>% 
+   filter(risco == 1 & !is.na(risco)) %>% 
+   group_by(fxetaria2) %>% summarise(freq = sum(Freq), Perc = round(Freq/qtd_risco_sem_exame*100,1))
+gp0_fxetaria$freq = round(gp0_fxetaria$freq, 0)
+gp0_fxetaria
+```
+
+```{r}
+sum(gp0_fxetaria$freq)
+```
+
+
+Por estado, nunca fizeram exame
+
+```{r}
+pontos_0_est <- as.data.frame(survey::svytable(~ risco + uf, subset(df, diabetes!="1" & exames_glicemia_q029 == "6" & !is.na(risco)), exclude = NULL, na.action = na.pass))
+pontos_0_est
+```
+
+Por estado, nunca fizeram exame, com risco aumentado
+
+```{r}
+risco_0_est = pontos_0_est %>% 
+   filter(risco==1 & !is.na(risco)) %>%
+   mutate(Freq = round(Freq), perc = round(Freq/qtd_risco_sem_exame*100,1))
+#risco_0_est$Freq = round(risco_0_est$Freq)
+risco_0_est
+```
+
+```{r}
+sum(pontos_0_est[pontos_0_est$risco == 1, "Freq"], na.rm = T)
+```
+
+
+**Nota: 24 de outubro de 2022**: o algoritmo de avaliação de risco pontua, para as mulheres, se teve diagnóstico de diabetes gestacional; assim, penso que não devo excluir as mulheres que tiveram essa avaliação das tabulações da população em risco, já que estaria removendo pessoas que podem estar em risco. Então vou refazer as tabulações, retirando apenas as pessoas que efetivamente tiveram diagnóstico positivo de diabetes.
+
+O `subset` original era esse aqui:
+```
+subset(df, diabetes != 1 & diabetes != 2 & !is.na(risco))
+```
+
+vou substituir por esse aqui:
+```
+subset(df, diabetes != 1 & !is.na(risco))
+```
+
+
+### Risco de diabetes total e por gênero pessoas com diabetes gestacional (2), diagnóstico negativo (3) ou sem exames (4)
+
+
+```{r}
+pontos_genero2019 <- svyby(~one, ~risco + gender, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci", Ntotal = 1, multicore = TRUE)
+```
+
+
+```{r}
+pontos_total2019 <- svyby(~one, ~risco , subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci", Ntotal = 1, multicore = TRUE)
+todos19 <- round(todos - comdiabetes19, 0)
+todos19 <- unclass(todos19)
+```
+
+
+```{r tab.cap = "PNS 2019 - Risco População Total - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+pontos_total19.df <- pontos_total2019 %>% 
+  filter(risco == 1) %>%
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(todos19)*100,1), 
+         ci_l_perc = round(ci_l/sum(todos19)*100,1), 
+         ci_u_perc = round(ci_u/sum(todos19)*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one) %>%
+  mutate("AtRisk"="Total") %>%
+  select(AtRisk,N,`(%)`,`%95CI`)
+
+pontos_total19.df %>% 
+  #adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+```{r tab.cap = "PNS 2019 - Risco por Gênero - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+pontos_genero19.df <- pontos_genero2019 %>% 
+  filter(risco == 1) %>%
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1), 
+         ci_l_perc = round(ci_l/sum(one)*100,1), 
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one) #%>%
+#  bind_rows(pontos_total19.df)
+
+pontos_genero19.df %>% 
+  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+
+
+
+```{r tab.cap = "PNS 2019 - Risco por Faixa Etária - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+
+pontos_fxeta2_2019 <- svyby(~one, ~risco + fxetaria2, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_fxeta2_2019.df <- pontos_fxeta2_2019 %>% filter(risco == 1) %>% 
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1), 
+         ci_l_perc = round(ci_l/sum(one)*100,1), 
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_fxeta2_2019.df %>%
+  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+
+
+
+
+
+## IMC (com diabetes gestacional (2), exame sem diagnóstico (3) e sem exame(4))
+
+
+```{r tab.cap = "PNS 2019 - Risco por IMC - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+
+pontos_imc_2019 <- svyby(~one, ~risco + imcclass2, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_imc_2019.df <- pontos_imc_2019 %>% filter(risco == 1) %>% 
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1), 
+         ci_l_perc = round(ci_l/sum(one)*100,1), 
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_imc_2019.df %>%
+  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+## Escolaridade (com diabetes gestacional (2), exame sem diagnóstico (3) e sem exame(4))
+
+
+```{r tab.cap = "PNS 2019 - Risco por Escolaridade - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+
+pontos_fxesc_2019 <- svyby(~one, ~risco + fx_esc, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_fxesc_2019.df <- pontos_fxesc_2019 %>% filter(risco == 1) %>% 
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1), 
+         ci_l_perc = round(ci_l/sum(one)*100,1), 
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_fxesc_2019.df %>%
+  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+## Raça, Cor da Pele   (com diabetes gestacional (2), exame sem diagnóstico (3) e sem exame(4))
+
+
+```{r tab.cap = "PNS 2019 - Risco por Raça, Cor da Pele - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+
+pontos_race_2019 <- svyby(~one, ~risco + RaceSkinColor, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_race_2019.df <- pontos_race_2019 %>% filter(risco == 1) %>% 
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1), 
+         ci_l_perc = round(ci_l/sum(one)*100,1), 
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_race_2019.df %>%
+  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+
+
+
+## Hipertensão  (com diabetes gestacional (2), exame sem diagnóstico (3) e sem exame(4))
+
+
+```{r tab.cap = "PNS 2019 - Risco por Hipertensão - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+
+pontos_hypert_2019 <- svyby(~one, ~risco + Hypertension, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_hypert_2019.df <- pontos_hypert_2019 %>% filter(risco == 1) %>% 
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1), 
+         ci_l_perc = round(ci_l/sum(one)*100,1), 
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_hypert_2019.df %>%
+  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+
+# PNS 2019 - Juntando tudo em um data.frame 
+
+```{r pontos2019}
+pontos_fxeta2_2019.df <- as_tibble(pontos_fxeta2_2019.df) %>%
+  add_column(Classe = "Age(years)") %>%
+  rename(Nome = fxetaria2, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+pontos_race_2019.df <- as_tibble(pontos_race_2019.df) %>%
+  add_column(Classe = "RaceSkinColor") %>%
+  rename(Nome = RaceSkinColor, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+pontos_fxesc_2019.df <- as_tibble(pontos_fxesc_2019.df) %>%
+  add_column(Classe = "Education") %>%
+  rename(Nome = fx_esc, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+pontos_imc_2019.df <- as_tibble(pontos_imc_2019.df) %>%
+  add_column(Classe = "Body mass index(kg/m²)") %>%
+  rename(Nome = imcclass2, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+pontos_hypert_2019.df <- as_tibble(pontos_hypert_2019.df) %>%
+  add_column(Classe = "Hypertension") %>%
+  rename(Nome = Hypertension, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+  
+pontos_2019.df <- bind_rows(pontos_fxeta2_2019.df,pontos_race_2019.df,pontos_fxesc_2019.df,pontos_imc_2019.df,pontos_hypert_2019.df)
+```
+
+
+```{r}
+pontos_2019.df %>%
+     gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing() %>%
+  cols_label(
+    n2019 = "N",
+#    n2019 = "N",
+#    "(%)" = "(%)",
+#    `%95CI` = "%95CI",
+#    "2019 (%)" = "(%)",
+#    `2019 %95CI` = "95%CI"
+  ) %>%
+  tab_spanner(
+    label = "Characteristic",
+    columns = c(Classe)
+  ) %>%
+  tab_spanner(
+    label = "2019",
+    columns = c(n2019, `(%)`, `%95CI`)
+  )
+```
+
+
+
+
+### Risco de diabetes por UF (população com exame sem diagnóstico(3) e sem exame(4))
+
+
+```{r tab.cap = "PNS 2019 - População de cada estado"}
+pop_ufpns2019 <- as.data.frame(svyby(~one, ~uf, subset(df, diabetes != 1 & !is.na(risco)), svytotal, multicore = TRUE))
+pop_ufpns2019 <- pop_ufpns2019 %>% 
+  select(-se, popul=one)
+pop_ufpns2019 %>% 
+  adorn_totals() %>% 
+  flextable() %>% autofit()
+```
+
+```{r}
+pop_regpns2019 <- as.data.frame(svyby(~one, ~regiao, subset(df, diabetes != 1 & !is.na(risco)), svytotal, multicore = TRUE)) %>%
+select(-se, popul=one)
+```
+
+
+```{r tab.cap = "PNS 2019 - Risco por UF - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+pontos_uf_2019 <- svyby(~one, ~risco + uf, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_uf_2019.df <- pontos_uf_2019 %>% 
+  filter(risco == 1) %>% left_join(pop_ufpns2019, by = "uf") %>%
+  mutate(one = round(one,0), popul = round(popul,0),
+         `(%)`=round(one/popul*100,1), 
+         ci_l_perc = round(ci_l/popul*100,1), 
+         ci_u_perc = round(ci_u/popul*100,1)) %>%
+  select(-risco, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc, -popul) %>%
+  rename(N=one)
+
+pontos_uf_2019.df %>% arrange(desc(`(%)`)) %>%
+ # adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+### Risco de diabetes por Região (população com exame sem diagnóstico(3) e sem exame(4))
+
+```{r tab.cap = "PNS 2019 - Risco por Região - diabetes gestacional, diagnóstico negativo e Sem Exame"}
+pontos_reg_2019 <- svyby(~one, ~risco + regiao, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_reg_2019.df <- pontos_reg_2019 %>% 
+  filter(risco == 1) %>%  left_join(pop_regpns2019, by = "regiao") %>%
+  mutate(one = round(one,0),
+         `(%)`=round(one/popul*100,1), 
+         ci_l_perc = round(ci_l/popul*100,1), 
+         ci_u_perc = round(ci_u/popul*100,1)) %>%
+  select(-risco, -ci_l, -ci_u, -popul) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_reg_2019.df %>% arrange(desc(`(%)`)) %>%
+#  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
+
+```{r}
+pontos_uf_2019.df <-  as_tibble(pontos_uf_2019.df) %>%
+  add_column(Classe = "UF") %>%
+  rename(Nome = uf, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+pontos_reg_2019.df <- as_tibble(pontos_reg_2019.df) %>%
+  add_column(Classe = "Região") %>%
+  rename(Nome = regiao, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+pontos_tot_2019.df <- as_tibble(pontos_total19.df) %>%
+  add_column(Classe = "AtRisk") %>%
+  rename(Nome = AtRisk, n2019 = N) %>%
+  mutate(Nome = as.character(Nome))
+```
+
+
+```{r}
+pontos_2019.df <- bind_rows(pontos_2019.df, pontos_uf_2019.df, 
+                            pontos_reg_2019.df, pontos_tot_2019.df)
+```
+
+```{r eval = FALSE}
+saveRDS(pontos_2019.df, file = "pontos_2019_20230505.rds", compress = TRUE)
+```
+
+
