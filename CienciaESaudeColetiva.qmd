@@ -715,7 +715,9 @@ ggsave("regions.jpeg", regions_g, dpi = 600)
 
 As a final remark, it's important to highlight the relevance of the "National Health Survey" (PNS) for nationwide health studies. PNS contains many invaluable data on the Brazilian population's health assessment, and this wonderful data treasury has being constantly explored by scientists throughout the country and beyond. We urge the Health Ministry to continue and expand the PNS survey. One suggestion for expansion would be adding a question about the relatives (mother, father, sister or brother) with diabetes, that was the only missing information for the ADA risk assessment algorithm.
 
+<!--
 Finally, all the R scripts used in this paper are available in the public GitHub repository `https://github.com/ipencnensp/diabetesPNSpub`.
+-->
 
 <!--
 representing an `r round((N1319Risco$N2019 - N1319Risco$N2013)/N1319Risco$N2013*100,2)`% growth. Brazil's population increased from 200,004,188 to	210,147,125	 in the same period, representing an 5% growth, that is, people at risk for diabetes had a 4 fold higher increase.
@@ -738,9 +740,15 @@ Mário Olímpio de Menezes was responsible for the conceptualization, data curat
 
 Both authors were responsible for reviewing the final version.
 
-## Conflict of Interests
+# Conflict of Interests
 
 Authors declare no conflict of interests.
+
+# Research Data availability
+
+All the R scripts used in this paper are available in the public GitHub repository \newline `https://github.com/ipencnensp/diabetesPNSpub`.
+
+PNS data is available at FIOCRUZ website `https://www.pns.icict.fiocruz.br/`; a script is provided to automatically download PNS data to reproduce all analysis.
 
 # References {.unnumbered}
 
