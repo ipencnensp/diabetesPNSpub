@@ -45,7 +45,7 @@ Prior to processing the main paper file "CienciaESaudeColetiva.qmd", the followi
 
 ## Final article
 
-After creating the intermediate data above and downloading the shape file, the main article "CienciaESaudeColetiva.qmd" can be processed.
+After creating the intermediate data above and downloading the shape file, the main article "CienciaESaudeColetiva_revisao.qmd" can be processed.
 
 If the option for "Word" output is chosen, a `docx` file will be generated. However, the file is not ready for publishing yet, but it is the closest possible version that can be produced from the Quarto source. Only the Abstract (in English) will be present, while the Portuguese "Resumo"" must be copied and pasted from the `.qmd` file.
 
