@@ -1,0 +1,1040 @@
+---
+title: "Using Brazilian Health Surveys 2013 and 2019 for a nationwide diabetes risk assessment"
+author:
+  - name: Marcelo Moreira da Silva
+  - name: Mário Olímpio de Menezes
+format:
+  pdf: 
+    documentclass: scrartcl
+    classoption: abstract
+    include-in-header:
+      - text: |
+          \usepackage{lmodern}
+          \renewcommand*\familydefault{\sfdefault} %% Only if the base font of the document is to be sans serif
+          \usepackage[T1]{fontenc}
+          \usepackage{algorithm}
+          \usepackage{algpseudocode}
+  plos-pdf:
+    journal: globalpublichealth
+    keep-tex: false
+  aft-pdf:
+    keep-tex: false
+  elsevier-pdf:
+    keep-tex: false
+  docx:
+    toc: false
+    number-sections: false
+    highlight-style: github
+abstract: |
+ Brazil had, in 2021,  almost 15.7 million people with diabetes (type 1 and 2). In this work, using the Pesquisa Nacional de Saúde (PNS) 2013 and 2019, the diabetes risk for the entire population covered by those surveys, with 18 years and older, was assessed applying the American Diabetes Association Risk Test. Only one question from that test, regarding relatives with diabetes, could not be answered from the PNS questionnaires. After applying the test to both PNS 2013 and 2019, 15.9% and 19.0% of the population aged 18+ was found to be at risk of developing diabetes, representing about 23 and 28 million people, respectively. Those with 65+ years were found to be more at risk, increasing from 42.3% in 2013 to 46.0% in 2019. A good result came from those with BMI > 30, whose percentage at risk dropped from 47.9% in 2013 to 42.5% in 2019. Brazilian states with the biggest risk increase were Tocantins, Mato Grosso do Sul, Piauí and Bahia, all with more than 4pp (percentage points), while ten states increased more than 3pp. The results obtained in this work corroborate recent findings in diabetes prevalence studies and also reinforce the great importance of such nationwide health survey, as it represent an invaluable resource to public health policies. 
+ 
+ Keywords: Diabetes Mellitus, Prediabetic State; Health Policy, Planning and Management
+resumo: |
+ O Brasil tinha, em 2021, cerca de 15.7 milhões de pessoas com diabetes (tipo 1 e 2). Neste trabalho, utilizando a Pesquisa Nacional de Saúde (PNS) 2013 e 2019, o risco de diabetes para a população abrangida por estas pesquisas, com 18 anos ou mais, foi avaliado, através do Teste de Risco de Diabetes da American Diabetes Association. Uma questão, sobre parentes com diabetes, não está presente nos questionários da PNS. Aplicando o teste às PNS 2013 e 2019, 15.9% e 19.0% da população com 18+ anos apresentou risco de desenvolver diabetes, o que representa cerca de 23 e 28 milhões de pessoas, respectivamente. Aqueles com 65+ anos apresentaram o maior risco, com os valores subindo de 42.3% em 2013 para 46.0% em 2019. Um bom resultado foi obtido para aqueles com IMC > 30, cujo percentual em risco diminuiu de 47.9% em 2013 para 42.5% em 2019. Os estados brasileiros com o maior aumento de risco foram Tocantins, Mato Grosso do Sul, Piauí e Bahia, todos com mais de 4pp (pontos percentuais). Dez estados aumentaram mais do que 3pp. Nossos resultados corroboram os que têm sido obtidos em estudos recentes de prevalência de diabetes e também reforçam a importância de pesquisas de abrangência nacional sobre saúde como um recurso importante para as políticas públicas. 
+ 
+ Palavras chaves: Diabetes Mellitus; Estado Pré-Diabético; Políticas, Planejamento e Administração em Saúde
+bibliography: 
+ - diabetespns.bib
+csl: "vancouver-superscript.csl"
+link-citations: false  
+colorlinks: false
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+#| include: false
+if(!require(pacman)) install.packages("pacman")
+pacman::p_load(tidyverse, cowplot, wesanderson, ggthemes)
+library(knitr)
+library(kableExtra)
+library(gt)
+library(ggpubr)
+# devtools::install_github("davidsjoberg/ggbump")
+library(ggbump)
+library(RColorBrewer)
+library(sf)
+```
+
+# Introduction {.unnumbered}
+
+Diabetes is a major public health concern worldwide. As a silent disease, it's believed that almost half of the world's population doesn't even know whether they have it or not [@IDFDiabetesAtlas2021]. Due to its quiet nature, a great number of health complications can appear without early treatment, among which are heart diseases, retinopathy, kidney dysfunction, etc [@oliveira_diretrizes_2017].
+
+According the International Diabetes Federation -- IDF, Brazil had, in 2021, almost 15.7 million people with diabetes, including type 1 and type 2, considering only adults aged 20-79 years, with a growing trend globally [@IDFDiabetesAtlas2021]. A 2018 survey from Brazilian Health Ministry showed that between 2006 and 2016, the number of Brazilians with diabetes increased by about 61.8%, reaching the stunning value of 8.9% of the entire population, up from 5.5% in the previous survey [@oliveira_diretrizes_2017].
+
+Brazil was the 6th country with the highest incidence of diabetes in the world in 2021, for adults aged 20-79 years, according to the IDF Diabetes Atlas. An astonishing estimative for the global economic burden due to diabetes gives a value of USD 966 billion for adults aged 20-79 years. This represents a 316% increase over 15 years. Brazil had an estimate of USD 42.9 billion diabetes-related health expenditure in 2021 for adults aged 20-79 years [@IDFDiabetesAtlas2021].
+
+In an effort to provide quality data to improve health services in Brazil, the Brazilian Health Ministry, in collaboration with the Brazilian Statistics and Geography Institute (Instituto Brasileiro de Geografia e Estatística - IBGE), produced two versions of the “Pesquisa Nacional de Saúde (PNS)”, one in 2013 and another in 2019. 
+
+One very recent study from Reis et al [@reis_evolution_2022] analyzed the evolution of diabetes mellitus using PNS 2013 and 2019. Some of the findings of the study are: a relative increase of 24% in crude prevalence from 2013 to 2019, with a higher increase in men than in women, even though women's prevalence remained higher in the 2019 survey (8.4%) versus men's prevalence of 6.9%. In absolute numbers, the number of cases of diabetes was 12.3 million in 2019 against 9.0 million in 2013, a 36.4% increase. Some drivers of this rise include an increase in population size (9.9%) and aging (1.8%). In their conclusion, the authors acknowledge that Brazil is experiencing the same worldwide trend of an increase in the prevalence of diabetes in all of its regions, leading to a huge burden on the health system.
+
+Early diagnosis and treatment of diabetes is essential to prevent chronic complications. In an effort to facilitate prediabetes risk assessment in asymptomatic adults, the American Diabetes Association (ADA) produced several guidelines to help physicians screen people who are at high risk of developing it further in their lifetime but do not already meet diabetes criteria based on blood testing results, which use plasma glucose criteria, either the fasting plasma glucose (FPG) or the 2-h plasma glucose (2-h PG) value during a 75-g oral glucose tolerance test (OGTT)  [@american_diabetes_association_2_2018]. These guidelines were condensed in what is known as the "ADA risk assessment algorithm" which is endorsed by The Brazilian Diabetes Society, that also translated it to Portuguese to ease its application by Brazilian physicians.
+
+Other countries have also produced non-lab screening methodologies for diabetes risk assessment to identify people who might be in danger of developing diabetes but do not yet present positive lab results. We could find such efforts in Canada [@robinson_validating_2011], China [@li_non-lab_2018] and also in Finnish [@lindstrom_diabetes_2003]; Buijsse and colleagues did a good study on several of these tools [@buijsse_risk_2011].
+
+Some authors have started to use these non-lab or semi-lab algorithms to assess diabetes risk, using questionnaires and algorithms designed for this task. For instance, Iser and colleagues [@iser_prevalencia_2021] applied two distinct criteria to evaluate the prevalence of prediabetes and intermediate hyperglycemia, using the American Diabetes Association (ADA) diagnostic criteria and the World Health Organization (WHO). They used clinical data from the Pesquisa Nacional de Saúde (PNS) 2013, which corresponds to a fraction of the sample we used in this work. These clinical data were collected from a sub-sample, and for their study, 7,548 participants were considered after removing those whose HbA1c level was compatible with diabetes (310 people - HbA1c $\geq$  6.5%) and 398 people because they had missing information. They found, using both criteria, that between 7.5 (WHO criteria) and 18.5% (ADA criteria) of Brazilian adults presented prediabetes and hyperglycemia.
+
+Another study that used a non-lab method for risk assessment [@de_azevedo_rastreamento_2021] applied the Finnish Diabetes Risk Score (FINDRISC) [@lindstrom_diabetes_2003] to two distinct sub-populations of Manaus city, in the Brazil's Amazon state. In their study, Azevedo and colleagues assessed diabetes risk factors through the questionnaire and also with clinical data and further demographic and socio-economic data collected from the population sample under study. Their results indicated that out of the 120 participants (62% women), 43% presented an increased risk for diabetes. They also found statistically significant associations between diabetes risk and increased abdominal circumference, sedentary lifestyle, low daily fruit intake, daily fried foods and salty or fatty meats, and hereditary factors.
+
+
+<!--
+Reliable information throughout the country is fundamentally important to increase and improve healthcare planning for the population. In an effort to provide such quality data to improve health services in Brazil, the Health Ministry, in collaboration with the Brazilian Statistics and Geography Institute (Instituto Brasileiro de Geografia e Estatística - IBGE), conducted a major national survey called the National Health Survey (PNS) to assess the health status, lifestyle, chronic diseases, medication use, and other points of the Brazilian population.
+
+Two versions of the "Pesquisa Nacional de Saúde (PNS)" were conducted: one in 2013 and another in 2019. In the 2013 version, the initially planned sample size was around 80,000 households, and the dataset placed in the public access had 60,202 individuals who agreed to answer the full questionnaire. This represented a probabilistic sample of the Brazilian population aged 18+ years, representing about 145 million people [@szwarcwald_pesquisa_2014,  @ibge_pesquisa_2014]. In the 2019 version, the initially planned sample size was around 108,000 households, and the final dataset had 90,846 individuals who answered all questions. This represented a probabilistic sample of the Brazilian population aged 15+ years, representing about 168 million people[@ibge_pns_2019].
+-->
+<!--
+This big curated data prompted several researchers to explore its potential, producing high-quality research and helping public health policymakers make better decisions about Brazil's public health. Fiocruz (Fundação Oswaldo Cruz), a Brazilian Health Ministry company, lists some of these publications on its website `https://www.pns.icict.fiocruz.br/volumes-ibge/`.
+
+Most of the papers listed by Fiocruz and others found in several journals dealt, in some way, with the prevalence of diabetes, using public data from PNS or not. 
+-->
+
+
+In this paper, using the PNS data, we investigated the prevalence of diabetes risk among Brazil's population aged 18+, excluding individuals with a positive diabetes diagnosis. We detail the results by several important facets, such as age, race/skin color, body mass index, education, hypertension status, and by Brazil's states and regions.
+
+In addition to this Introduction, this paper is structured as follows: Materials and Methods: this section provides a detailed description of the research approach, including data preparation and manipulation, algorithm calculation, tools used, and ethical considerations; Results; this section presents all findings in the form of tables and figures; Discussion: this section offers a deeper analysis of the results and findings; Final Considerations: this section presents the study's strengths, discusses limitations, and suggests potential avenues for further research.
+
+
+<!-- The use of information technology in healthcare gave origin to the term  *e-health*  [@health_what_2020], which defines systems and applications of information technology in healthcare to monitor, manage and improve the health of the society, helping people to improve their quality of life and reduce inefficiencies in health services. -->
+
+<!-- In this work, we used the PNS 2013, hereafter refered simply as \textbf{PNS}; the PNS 2019 was released in late 2020, and will be used in the future, since the pandemic forced us to put some plans in hold.-->
+
+<!-- ## Related Work -->
+
+<!-- PNS has been used in several studies by a number of authors; some of these papers are related to diabetes and people's lifestyle; we discuss a few of them more closely related to our work. -->
+
+<!-- In their work, [@malta_cuidados_2015] investigated health services for diabetes mellitus patients in Brazil. Access to medications, health facilities, professional follow-up with the same doctor besides complimentary exams and specialist physicians access were investigated. The study showed that, from the self reported diabetes mellitus patients, only 40% had their eyes examined in the last year and only 30% had their feet examined last year. Differences in care and access to diagnostic tests were found by the authors, with North region concentrating the majority of people who have never been tested for diabetes; despite this, the same North region is where there's the highest percentage of people diagnosed with diabetes. This situation contrasts with the Southeast region, where there is the highest prevalence of diagnosis and the lowest percentage of people that have never been tested for diabetes. Such difference, according to the authors, might be related to accessibility to health services, in addition to sociodemographic and nutritional characteristics of each studied population. -->
+
+<!-- Szwarcwald and colleagues [@szwarcwald_recomendacoes_2015], analyzed the recommendations that patients with hypertension and diabetes received from their physicians and assessed whether these recommendations were followed. Two main questions were analyzed in relation to the two diseases: "In any of the medical consultation because of `<DISEASE>`, the physician or other health professional gave you some of these recommendations?", where `<DISEASE>` is one of "hypertension" or "diabetes". They found that more than 80% of the patients reported having received recommendations, showing that health promotion initiatives have positive impact. However, when analyzing the habits of these same patients, the study found that patients diagnosed with hypertension were more influenced in relation to tobacco and salt and less to the practice of regular physical activity or consumption of fruits and vegetables. For those patients diagnosed with diabetes, the most followed recommendations were tobacco use and, especially, the frequency of sugar consumption. -->
+
+<!-- In their other study [@malta_fatores_2017], Malta and colleagues analyzed the main factors associated with diabetes, as reported in the PNS, such as sociodemographic characteristics, lifestyle, self-reported chronic diseases and health condition self assessment. Results were adjusted according age, gender and schooling using Poisson regression with robust variance. They found higher prevalence of diabetes among black adults with less schooling; overweight adults also were found to have higher prevalence in relation to the national mean. Ex-smokers, insufficient physical activity and high alcohol use were also found with higher prevalence. Eating habits were not significantly different between those who reported or not diabetes; and a relationship between hypertension and diabetes was found in the study. After adjusting for age, schooling and gender, diabetes was found related to elderly, less schooling, former smokers, overweight, in addition to hypertension and poor health status (self-reported), indicating a risk factor pattern for several chronic, non-communicable diseases and also morbidity association. -->
+
+<!-- One very recent study from Reis et al [@reis_evolution_2022] analyzed the evolution of diabetes mellitus using PNS 2013 and 2019. Some of the finds of the study are: a relative increase of 24% in crude prevalence from 2013 to 2019, with a higher increase in men than in women, even though women's prevalence remained higher in 2019 survey (8.4%) versus men's prevalence of 6.9%. In absolute numbers, the number of cases of diabetes was 12.3 million in 2019 against 9.0 million in 2013, a 36.4% increase. Some drivers of this rise include increase in population size (9.9%) and aging (1.8%). In their conclusion, authors acknowledge that Brazil is accompanying a worldwide trend of increase of prevalence of diabetes in all of its regions, leading to a huge burden on the health system. -->
+
+<!-- Most of the above mentioned papers dealt in some way with prevalence of diabetes, using public data from PNS. More recently, some authors have start to use also non-lab or semi-lab algorithms to assess diabetes risk, using algorithms and questionnaires designed for this task. -->
+
+<!-- In this sense, Iser and colleagues [@iser_prevalencia_2021] applied two distincts criteria to evaluate prevalence of prediabetes and intermediate hyperglycemia using the American Diabetes Association (ADA) diagnostic criteria and World Health Organization (WHO). They used clinical data from PNS 2013, which correspond to a fraction of the sample we use in this work; these clinical data were collected from a sub-sample and for their study, 7.548 participants were considered, after removing those whose HbA1c level was compatible with diabetes (310 people -- HbA1c $\geq 6.5%$) and 398 people because missing information. They found, using both criteria, that between 7.5 (WHO criteria) and 18.5% (ADA criteria) of Brazilian adults presented prediabetes and hyperglycemia. -->
+
+<!-- Another study that use non-lab method for risk assessment [@de_azevedo_rastreamento_2021], applied the *Finnish Diabetes Risk Score* (FINDRISC) [@lindstrom_diabetes_2003] to two distinct sub-populations of Manaus city, in Amazon state. In their study, Azevedo and colleagues did an assessment of diabetes risk factors through the questionnaire and also with clinical data and further demographic and socioeconomic data collect from the population sample under study. Their results pointed that from the 120 participants (62% women), 43% presented increased risk for diabetes; they also found statistically significant association between diabetes risk and increased abdominal circumference, sedentary lifestyle, low daily fruits intake, daily fried foods and salty or fatty meats and heredity factors. -->
+
+<!-- In this work, using PNS 2013 and 2019, we performed an indirect application of the American Diabetes Association (ADA) risk assessment algorithm [@american_diabetes_association_2_2018]; the algorithm was translated and is endorsed by the Brazilian Diabetes Society (SBD), to be used in clinical survey for risk assessment of type 2 diabetes. Besides this Introduction, we have the following sections: Materials and Methods, Results and Discussion, Conclusion and References. -->
+
+# Materials and Methods {.unnumbered}
+
+
+PNS is a probabilistic, stratified complex survey. Both versions were designed by IBGE according a master sample built to cover the entire Brazilian territory. This sample was properly divided to supply other surveys needs. Both versions are composed of three-stage strategy: first, the primary sampling units were selected from that master sample. Then, a set of households was chosen and from each household an individual aged 18 or older for the 2013 version and aged 15 years or older for the 2019 version was randomly sampled from all household dwellers [@ibgePNS2013],[@ibgePNS2019]. Three questionnaires were used, one regarding the household, one regarding all dwellers and one regarding the single individual answering the survey. This last questionnaire included a module on the participant's health data. 
+
+In the PNS 2013 version, the initially planned sample size was around 80,000 households, and the dataset placed in the public access had 60,202 individuals who agreed to answer the full questionnaire. This represented a probabilistic sample of the Brazilian population aged 18+ years, representing about 145 million people [@szwarcwald_pesquisa_2014],[@ibge_pesquisa_2014]. In the 2019 version, the initially planned sample size was around 108,000 households, and the final dataset had 90,846 individuals who answered all questions. This represented a probabilistic sample of the Brazilian population aged 15+ years, representing about 168 million people[@ibge_pns_2019].
+
+The PNS data was analyzed using the R software [@Rsoftware] along with the "survey" library [@lumley_complex_2013] and other R packages for data manipulation and graphics. The PNS files were downloaded from the Fiocruz website, and initial data preparation was done following their instructions. All scripts used in this work are available on the Github repository, where all decisions regarding variable recoding and aggregation are also explained. After the initial data preparation, the **survey** object was constructed for each PNS data applying the correct weighting factors (variables `v0024` and `v0029`), and a subset of all variables was selected to be processed by the risk assessment algorithm. In the PNS 2013 raw data, we found that 800 observations had missing values for person's weight. For PNS 2019 raw data, 892 observations were found with missing values for person's weight and height. Some other variables also have missing values, but they were not used for our work.
+
+
+
+
+
+<!--
+PNS questionnaires have several questions about diabetes and glycemia, as shown below: in @tbl-diabetesquestions: 
+
++------------------------------------------------------+-----------------------------------------+
+| Regarding diabetes diagnostics                       | Regarding glycemia last test:           |
++======================================================+=========================================+
+| -   positive, negative, ignored or not applicable;   | -   Less than 6 months;                 |
+| -   if women, was the diagnostics only in pregnancy: | -   Between 6 mo and less than 1 year;  |
+|     -   Yes                                          | -   Between 1 yr and less than 2 years; |
+|     -   No                                           | -   Between 2 yr and less than 3 years; |
+|     -   Ignored                                      | -   3 years or more                     |
+|     -   Not applicable (men).                        | -   Never did;                          |
+|                                                      | -   Ignored;                            |
+|                                                      | -   Not applicable.                     |
++------------------------------------------------------+-----------------------------------------+
+-->
+<!--: Diabetes questions in PNS 2013 and 2019 {#tbl-diabetesquestions} -->
+
+
+
+PNS questionnaires have some questions of interest, about diabetes and glycemia:
+
+* Regarding diabetes diagnostics:
+    - positive, negative, ignored or not applicable;
+    - if women, was the diagnostics only in pregnancy:  Yes, No,  Ignored,  Not applicable (men).
+* Regarding glycemia's last test:
+    - Less than 6 months; between 6 months and less than 1 year;  between 1 year and less than 2 years; between 2 years and less than 3 years; 3 years or more; Never did; Ignored; Not applicable.
+
+
+In our work, we used only the question about diabetes diagnostics (variable `q030`), which was grouped in one variable **diabetes** considering the following levels: 1="Yes", 2="Pregnancy only", 3="No", 4="Never tested (for Missing or Ignored)". This variable was used to answer the ADA algorithm question 3 and also to subset the data, that is, we applied the algorithm excluding people which already had a positive diabetes diagnostic, that is, value 1="Yes".  <!--, as shown on @tbl-diabetes-prev. -->
+
+PNS questionnaires also have questions about physical activity that are also of interest, specifically:
+
+* Regarding physical activity practice, just "Yes" or "No" -- variable `p034`.
+* Regarding the number of days a week the person have physical activity: from 0 to 7 days, and also "Ignored" for missing data -- variable `p035`.
+
+<!--
++------------------------------------------------------+-----------------------------------------+
+| Regarding physical activity practice                 | Number of days a week                   |
++======================================================+=========================================+
+| -   Yes                                              | -   0                                   |
+| -   No                                               | -   1                                   |
+|                                                      | -   2                                   |
+|                                                      | -   3                                   |
+|                                                      | -   4                                   |
+|                                                      | -   5                                   |
+|                                                      | -   6                                   |
+|                                                      | -   7                                   |
+|                                                      | -  Ignored (NA)                         |
++------------------------------------------------------+-----------------------------------------+
+-->
+
+When cross-tabulating these questions, the number of missing data (Ignored) in the question about number of days a week the person have physical activity (variable `p035`) was exactly the same value as the answer "No" in the question regarding if had or not physical activity (variable `p034`); so, the Ignored level was reassigned to 0 to be in agreement with the answer "No" in the related question about the physical activity practice. Joining these information, in our work we created a new variable **prat_ativ** and assigned the following levels according to the number of days a week the person have physical activity: 1="3 or more days" and 0="less than 3 days"; this option is still conservative considering that WHO (World Health Organization)[@CDCMoveMoreSit2023] and CDC (Centers for Disease Control - USA)[@WHOPhysicalActivity] both recommend between 150 and 300 minutes of physical activity per week to a person be considered physically active, which roughly correspond to 5 days with 30 minutes per day. This variable was used to answer the ADA algorithm question number 6.
+
+To facilitate the analysis of PNS data regarding Brazilian territory, in addition to **UF** (Federation Unit, or state, `V0001`) variable, a new one was created, Region (Brazil's five regions), and each state was assigned to its corresponding region.
+
+<!-- To make sure our data were consistent, we did a simple cross validation between these questions assuring that both "Ignored" plus "Not Applicable" have the same number, in each version of PNS. -->
+
+## American Diabetes Association Algorithm {.unnumbered}
+
+\label{subsec:ADAalgo}
+
+The algorithm proposed by ADA [@american_diabetes_association_2_2018] is based on assigning points to several characteristics of the patient. The resulting sum, if equal or higher than 5, indicates a higher risk of diabetes type 2. The higher the sum, the higher the risk. This algorithm is applied by physicians through a list of questions and also with a lookup table for height and weight, where the patient's obesity is assessed, as shown in @tbl-adaalgorithm.  All criteria and rationale behind this algorithm is detailed at the American Diabetes Association site[@american_diabetes_association_2_2018]. <!-- If weigh less than the amount in the left Weight column for the corresponding height, then score 0 point in the 7th question; also, if is smaller than the minimum height, score 0 point in the 7th question. -->
+
+From the questions presented in @tbl-adaalgorithm, only the number 4, about relatives (mother, father, sister or brother) with diabetes, could not be answered with PNS data. Even with this absence, the algorithm was applied to the available data, making it possible to assess the risk of diabetes for about 136 million adult Brazilians for PNS 2013 and for about 147 million for PNS 2019, corresponding to those with the following diabetes status: "Pregnancy only," "No," and "Never tested" from @tbl-diabetes-prev. 
+
+The following PNS variables were used to answer each corresponding ADA's algorithm question:
+
+* weight: `w00203`
+* height: `w00103`
+* age:    `c008`
+* gender: `c006`
+* pregnancy only diabetes: `diabetes`, as mentioned above.
+* hypertension:  `q002`
+* physical activity: `p034` and `p035` combined in the `prat_ativ` variable, as mentioned above.
+
+
+To implement the ADA algorithm, we used the R programming language to perform the following steps:
+
+* **For weight and height assessment**: Look up the height in @tbl-adaalgorithm, locate the corresponding weight range, assign the corresponding point amount from the bottom of the respective weight column.
+* **For other variables**: Compare each variable’s value against the criteria in @tbl-adaalgorithm, assign points based on the criteria.
+* **Calculate the total points**: Sum the points from all variables, store the sum in a new variable for further analysis and segmentation.
+
+
+<!--
+The ADA algorithm questions were translated into several steps in the R programming language for computing the points associated with each particular characteristic, using these variables. For weight and height assessment, first we looked up the height in @tbl-adaalgorithm and then found the corresponding weight range; finally, the corresponding point amount was assigned by looking at the bottom of the respective weight column. For the other variables, a simple comparison was done against each variable's value, according to each criterion shown in @tbl-adaalgorithm. The sum was then stored in a new variable, enabling further analysis and segmentation. 
+-->
+
+<!--
+#### ADA Risk Assessment Questions {.unnumbered}
+-->
+
++---------------------------------------------------------------------+-----------+----------+-------------+-----------------+
+| Algorithm questions                                                 | Height(m) |          | Weight (kg) |                 |
++:====================================================================+:=========:+:========:+:===========:+:===============:+
+| 1.  What's your age?                                                | 1.47 \    | 54-64\   | 65-86\      | 87$+$\          |
+|                                                                     | 1.50 \    | 56-67\   | 67-89\      | 90$+$\          |
+| -   \<40 years: 0 point                                             | 1.52 \    | 58-69\   | 69-92\      | 93$+$\          |
+| -   40--49 years: 1 point                                           | 1.55 \    | 60-71\   | 72-95\      | 96$+$\          |
+| -   50--59 years: 2 points                                          | 1.57 \    | 62-74\   | 74-98\      | 99$+$\          |
+| -   Above 60 years: 3 points                                        | 1.60 \    | 64-76\   | 77-102\     | 102$+$\         |
+|                                                                     | 1.63 \    | 66-78\   | 79-105\     | 105$+$\         |
+| 2.  Are you a man or a woman?                                       | 1.65 \    | 68-81\   | 82-108\     | 109$+$\         |
+|                                                                     | 1.68 \    | 70-84\   | 84-112\     | 112$+$\         |
+| -   Male: 1 point                                                   | 1.70 \    | 72-86\   | 87-115\     | 116$+$\         |
+| -   Female: 0 point                                                 | 1.73 \    | 74-89\   | 89-118\     | 119$+$\         |
+|                                                                     | 1.75\     | 77-92\   | 92-122\     | 122$+$\         |
+| 3.  If woman, have been diagnosed with gestational diabetes?        | 1.78\     | 79-94\   | 95-126\     | 126$+$\         |
+|                                                                     | 1.80 \    | 81-97\   | 98-129\     | 130$+$\         |
+| -   Yes: 1 point                                                    | 1.83 \    | 83-100\  | 100-133\    | 133$+$\         |
+| -   No: 0 point                                                     | 1.85 \    | 86-103\  | 103-137\    | 137$+$\         |
+|                                                                     | 1.88 \    | 88-105\  | 106-141\    | 141$+$\         |
+| 4.  Any relative (mother, father, sister or brother) with diabetes? | 1.91 \    | 91-108\  | 109-144\    | 144$+$\         |
+|                                                                     | 1.93 \    | 93-111   | 112-148     | 149$+$\         |
+| -   Yes: 1 point                                                    |           |          |             |                 |
+| -   No: 0 point                                                     |           |          |             |                 |
+|                                                                     |           |          |             |                 |
+| 5.  High blood pressure diagnosis?                                  |           |          |             |                 |
+|                                                                     |           |          |             |                 |
+| -   Yes: 1 point                                                    |           |          |             |                 |
+| -   No: 0 point                                                     |           |          |             |                 |
+|                                                                     |           |          |             |                 |
+| 6.  Physically active?                                              |           |          |             |                 |
+|                                                                     |           |          |             |                 |
+| -   Yes: 0 point                                                    |           |          |             |                 |
+| -   No: 1 point                                                     |           |          |             |                 |
+|                                                                     |           |          |             |                 |
+| 7.  What is your weight status?                                     |           |          |             |                 |
++---------------------------------------------------------------------+-----------+----------+-------------+-----------------+
+| Points based on height and weight (0 if smaller or lighter)         |     --    | 1 point  | 2 points    | 3 points        |
++---------------------------------------------------------------------+-----------+----------+-------------+-----------------+
+
+: ADA algorithm questions and lookup table {#tbl-adaalgorithm .longtable}
+
+
+
+
+
+<!-- cohesive grammar correction -->
+
+### Ethical Aspects {.unnumbered}
+
+Both PNS surveys were approved by the National Commision of Ethics in Research (Comissão Nacional de Ética em Pesquisa -- CONEP), of the National Health Council (Conselho Nacional de Saúde -- CNS); PNS 2013 received its approval on June 2013 and PNS 2019 on August 2019. All participants signed the Free and Informed Consent Form before the interview, guaranteeing data confidentiality, and also, all participants could resign freely at any time of the study. For this work, as we use only PNS data, no Ethical Committee approval was necessary.
+
+# Results {.unnumbered}
+ 
+Using the PNS data, the prevalence of diabetes among the whole population aged 18+ years, by gender and by Age (years) for those with positive diagnosis, was obtained and is shown in @tbl-diabetes-prev. These results are in agreement with Malta and colleagues [@malta_fatores_2017] and also with Reis and colleagues [@reis_evolution_2022], except for some minor differences that could be due to the PNS release date. We are using the release from late 2020, which was recalibrated by IBGE regarding population projection, to allow comparisons with the new 2019 PNS. Additionally, we are utilizing the Fiocruz’ release of this latest version of the PNS. We also show group totals, where minor differences can appear, evidencing the probabilistic nature of the survey data. 
+
+<!-- @tbl-diabetes-prev shows the prevalence of diabetes among the whole population aged 18+ years, by gender and by Age (years) for those with positive diagnostics, for 2013 and 2019 data. -->
+
+<!-- 
+@tbl-diabetes-seg shows a breakdown of positive diabetes by Age, Race/Skin Color, Education, Body Mass Index and Hypertension status. As presented in @tbl-diabetes-seg, PNS 2019 sample size for 18+ years old is about 159 million people, while total sample size for 15+ years old is about 168 million people.
+-->
+
+
+
+```{r}
+#| echo: false
+diabetes2013_gt <- readRDS("diabetes2013_gt_20230505.rds")
+diabetes2019_gt <- readRDS("diabetes2019_gt_20230505.rds")
+diab1319.df <- readRDS("diab1319_20230505.rds")
+```
+
+
+
+```{r}
+#| echo: false
+# from reproducao_artigo_prev2013x2019
+diabonly13 <- readRDS("diabetesonly2013fxetaria.rds")
+diabonly19 <- readRDS("diabetesonly2019fxetaria.rds")
+```
+
+```{r}
+#| echo: false
+diabonly13 <- diabonly13 %>%
+  rename(`n2013`=n) %>%
+  mutate(Nome = as.character(`Age(years)`)) %>%
+  mutate(Classe = "Age(years) -- Positive diagnosis only") %>%
+  select(-`Age(years)`)
+diabonly19 <- diabonly19 %>%
+  rename(`n2019`=n) %>%
+  mutate(Nome = as.character(`Age(years)`)) %>%
+  mutate(Classe = "Age(years) -- Positive diagnosis only") %>%
+  select(-`Age(years)`)
+```
+
+```{r}
+#| echo: false
+diabonly1319 <- bind_cols(diabonly13, select(diabonly19, -Nome, -Classe))
+```
+
+
+```{r}
+#| echo: false
+diabetes1319_gt <- bind_cols(diabetes2013_gt, select(diabetes2019_gt, -Nome,-Classe))
+```
+
+```{r}
+#| echo: false
+diabetes1319_gt <- bind_rows(diabetes1319_gt, diabonly1319)
+```
+
+```{r}
+#| echo: false
+#| label: tbl-diabetes-prev
+#| tbl-cap: "Prevalence of diabetes: total, men, women and by age (for positive diagnosis only)"
+diabetes1319_gt %>%
+     gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing() %>%
+  cols_label(
+    n2013 = "N",
+    n2019 = "N",
+    "2013 (%)" = "(%)",
+    `2013 %95CI` = "95%CI",
+    "2019 (%)" = "(%)",
+    `2019 %95CI` = "95%CI"
+  ) %>%
+  tab_spanner(
+    label = "Characteristic",
+    columns = c(Classe)
+  ) %>%
+  tab_spanner(
+    label = "2013",
+    columns = c(n2013, `2013 (%)`, `2013 %95CI`)
+  ) %>%
+  tab_spanner(
+    label = "2019",
+    columns = c(n2019, `2019 (%)`, `2019 %95CI`)
+  ) %>%
+  summary_rows(
+    columns = c(n2013,n2019),
+    fns = list(
+      list(label = "Total", fn = "sum")
+    ),
+    fmt = ~ fmt_number(., decimals = 0, use_seps = TRUE)
+  ) %>%
+  # summary_rows(
+  #   groups = TRUE,
+  #   columns = c(n2013,n2019),
+  #   fns = list(
+  #     total = ~sum(.)
+  #   ),
+  #   formatter = fmt_number,
+  #   decimals = 0,
+  #   use_seps = TRUE
+  # ) %>%
+  fmt_number(
+    columns = c(n2013,n2019), 
+    decimals = 0, 
+    use_seps = TRUE
+  )
+```
+
+```{r}
+#| echo: false
+diab1319.df <- readRDS("diab1319_20230505.rds")
+```
+
+
+
+After applying the algorithm to PNS 2013 and 2019 data, the missing data for weight and height resulted also in missing data in the risk assessment results, as follow: 
+
+* For 2013, missing data (Total: 1,475,411)
+  * Yes:  13,960
+  * Pregnancy: 51,468
+  * No: 1,304,934
+  * Never Tested:  105,049
+* For 2019, missing data (Total: 1,611,435)
+  * Yes:  19,558
+  * Pregnancy:  41,299
+  * No:  1,478,086
+  * Never Tested: 72,492
+
+
+
+  
+<!--
+After applying the algorithm to PNS 2013 and 2019 data, the missing data for weight and height in data resulted also in missing data in the risk assessment results, shown on @tbl-isnarisk1319. This happened because the algorithm needs the weight and height of the individuals to calculate the risk. 
+-->
+
+
+```{r}
+#| echo: false
+#| warning: false
+
+x2013 <- readRDS("distribuicaoNAsrisco2013_20230505.rds")
+x2019 <- readRDS("distribuicaoNAsrisco2019_20230505.rds")
+x2013 <- rename(ungroup(x2013), Freq2013 = Freq)
+x2019 <- rename(ungroup(x2019), Freq2019 = Freq)
+isnarisk1319 <-bind_cols(x2013,select(x2019, -diabetes)) %>%
+  mutate(diabetes = case_when(diabetes == 1 ~ "Yes",
+                              diabetes == 2 ~ "Pregnancy",
+                              diabetes == 3 ~ "No",
+                              diabetes == 4 ~ "Never Tested"
+                         ))
+# isnarisk1319 %>%
+#   gt() %>%
+#     cols_label(
+#     Freq2013 = "2013",
+#     Freq2019 = "2019",
+#     diabetes = "Diab. Diagnostics"
+#   ) %>%
+#   fmt_number(
+#     columns = c(Freq2013,Freq2019), 
+#     decimals = 0, 
+#     use_seps = TRUE
+#   )
+```
+
+```{r}
+#| warning: false
+#| message: false
+pontos_2013.df <- readRDS("pontos_2013_20231219.rds")
+pontos_2013.df <- rename(pontos_2013.df, `2013 (%)`="(%)", "2013 %95CI" = "%95CI")
+pontos_2019.df <- readRDS("pontos_2019_20231219.rds")
+pontos_2019.df <- rename(pontos_2019.df, `2019 (%)`="(%)", "2019 %95CI" = "%95CI")
+pontos1319.df <- bind_cols(pontos_2013.df, select(pontos_2019.df, -Nome,-Classe))
+atrisk1319 <-  pontos1319.df %>% filter(Classe == "AtRisk")
+pontos1319.df <- bind_rows(atrisk1319, filter(pontos1319.df, Classe != "AtRisk"))
+N1319Risco <- pontos1319.df %>% 
+  filter(Classe == "Age(years)") %>% 
+  summarise(N2013 = sum(n2013), N2019 = sum(n2019)) %>% 
+  unclass() %>% as.vector()
+```
+
+```{r}
+pontos1319.df <- pontos1319.df %>%
+  mutate(Nome = case_when(Nome == "IncElem" ~ "Incomplete elementary",
+                          Nome == "CompElem" ~ "Complete elementary",
+                          Nome == "CompHiSc" ~ "Complete high school",
+                          Nome == "CompHigher" ~ "Complete higher education",
+                          TRUE ~ Nome))
+```
+
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+pop1319_18mais <- filter(diabetes1319_gt, Classe == "Geral")
+pop13_18mais <- as.numeric(sum(pop1319_18mais[c(2,3,4),"n2013"]) - 
+                             sum(isnarisk1319[c(2,3,4), "Freq2013"]))
+pop19_18mais <- as.numeric(sum(pop1319_18mais[c(2,3,4),"n2019"]) -
+                             sum(isnarisk1319[c(2,3,4), "Freq2019"]))
+```
+
+
+
+
+The ADA risk assessment algorithm was applied to individuals with diabetes status of 'Pregnancy only,' 'No,' and 'Never Tested' in both the 2013 and 2019 PNS data. The results for these individuals identified as 'at risk' are shown in @tbl-riskresult. Throughout the following discussion, the population analyzed for risk assessment represents `r format(round(pop13_18mais, 0), scientific=FALSE, big.mark = ",")` people in 2013 and `r format(round(pop19_18mais, 0), scientific=FALSE, big.mark = ",")`  people in 2019, excluding missing data as mentioned earlier.
+
+<!--
+The ADA risk assessment algorithm was applied to both 2013 and 2019 PNS data for individuals with diabetes status of “Pregnancy only”, “No” and “Never Tested”. The results, for these identified “at risk people”, are shown in @tbl-riskresult; these are the “at risk people”. In all discussion below, the population on which the risk assessment was performed represents  `r format(round(pop13_18mais, 0), scientific=FALSE, big.mark = ",")` people in 2013 and 145,286,294 people in 2019
+– numbers from @tbl-diabetes-prev, excluding missing data mentioned above.
+-->
+<!--
+The ADA risk assessment algorithm was applied to both 2013 and 2019 PNS data for those with diabetes status of "Pregnancy only", "No" and "Never Tested", and the results obtained are shown in @tbl-riskresult; these are the "at risk people". In all discussion below, the population on which the risk assessment was performed represents `r format(round(pop13_18mais, 0), scientific=FALSE, big.mark = ",")` people in 2013 and `r format(round(pop19_18mais,0), scientific=FALSE, big.mark = ",")` people in 2019 -- numbers from @tbl-diabetes-prev, excluding missing data mentioned above. --> <!-- from @tbl-isnarisk1319. -->
+
+
+
+
+```{r}
+#| label: tbl-riskresult
+#| tbl-cap: Breakdown of population with diabetes risk according to ADA algorithm
+pontos1319.df %>%
+  filter(!Classe %in% c("UF","Região")) %>%
+       gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing() %>%
+  cols_label(
+    n2013 = "N",
+    n2019 = "N",
+    "2013 (%)" = "(%)",
+    `2013 %95CI` = "95%CI",
+    "2019 (%)" = "(%)",
+    `2019 %95CI` = "95%CI"
+  ) %>%
+  tab_spanner(
+    label = "Characteristic",
+    columns = c(Classe)
+  ) %>%
+  tab_spanner(
+    label = "2013",
+    columns = c(n2013, `2013 (%)`, `2013 %95CI`)
+  ) %>%
+  tab_spanner(
+    label = "2019",
+    columns = c(n2019, `2019 (%)`, `2019 %95CI`)
+  ) %>%
+#  summary_rows(
+#    groups = everything(),
+#    columns = c(n2013,n2019),
+#    fns = list(
+#      total = ~ sum(., na.rm = TRUE)
+#    ),
+#    fmt = list(~ fmt_number(., decimals = 0, use_seps = TRUE)),
+#  ) %>%
+  fmt_number(
+    columns = c(n2013,n2019), 
+    decimals = 0, 
+    use_seps = TRUE
+  ) 
+```
+
+
+We also found that from those Women that had 'Pregnancy only' diabetes, about 50% presented high risk to develop diabetes later on, in both 2013 and 2019 PNS results.
+
+Brazil's vast continental area exhibits significant variations in population characteristics across states and regions [@ibgepanoramacenso2022]. To better understand diabetes risk across its territory, @fig-risk-uf presents the ranking of Brazilian states according to the ADA diabetes risk assessment algorithm, highlighting the changes from 2013 to 2019, and @fig-riskresultregioes shows the evolution of diabetes risk in the five Brazilian regions for the same period.
+
+<!--
+Overall, there was a 3 percentage points increase for the whole range, so that the minimal value increased from 9.9% to 12.7% and the maximum from 21.5% to 24.2%. All states, but one and the Federal District, presented increases in the risk values, and some states experienced major increases of about 5 percentage points in diabetes risk. There were 10 states with increases above or equal 3 percentage points, indicated with an "*" near their names. The Federal District presented a decrease in risk value of 0.2 percentage point and Rio Grande do Norte state had a decrease of 1.4 percentage points.
+-->
+
+
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+ufpoints <- filter(pontos1319.df, Classe == "UF") |> 
+   #select(-`2013 %95CI`, -`2019 %95CI`, -Classe) |>
+    mutate(Regiao = fct_collapse(Nome, 
+                `North` = c("Rondonia","Acre","Amazonas","Roraima","Para", "Amapa","Tocantins"),
+                `Northeast` = c("Maranhao", "Piaui", "Ceara", "Rio Grande do Norte", "Paraiba","Pernambuco", "Alagoas","Sergipe","Bahia"),
+                `Southeast` = c("Minas Gerais", "Espirito Santo","Rio de Janeiro", "Sao Paulo"), 
+                `South` = c("Parana", "Santa Catarina", "Rio Grande do Sul"),
+                `Central-West`= c("Mato Grosso do Sul","Mato Grosso", "Goias", "Distrito Federal"))) |>
+  mutate(UFsigla= fct_collapse(Nome,
+                                        `RO`= "Rondonia", 
+                                        `RR`= "Roraima",              
+                                        `AC `= "Acre", 
+                                        `AM` = "Amazonas",
+                                        `PA` = "Para" ,
+                                        `AP`= "Amapa",
+                                        `TO` = "Tocantins",
+                                        `MA` = "Maranhao",
+                                        `PI`= "Piaui" ,
+                                        `CE`= "Ceara",
+                                        `RN`= "Rio Grande do Norte",
+                                        `PB`= "Paraiba",
+                                        `PE`= "Pernambuco",
+                                        `AL`= "Alagoas",
+                                        `SE`= "Sergipe",
+                                        `BA`= "Bahia",
+                                        `MG`= "Minas Gerais",
+                                        `ES`= "Espirito Santo",
+                                        `RJ`= "Rio de Janeiro",
+                                        `SP`= "Sao Paulo",
+                                        `PR`= "Parana",
+                                        `SC`= "Santa Catarina",
+                                        `RS`= "Rio Grande do Sul",
+                                        `MS`=  "Mato Grosso do Sul",
+                                        `MT`= "Mato Grosso",
+                                        `GO` = "Goias",
+                                        `DF`= "Distrito Federal")) |>
+  mutate(Regiao = as.character(Regiao), UFsigla = as.character(UFsigla))
+ufpoints13 <- select(ufpoints, -n2019, -`2019 (%)`)
+ufpoints13$year <- 2013
+ufpoints19 <- select(ufpoints, -n2013, -`2013 (%)`)
+ufpoints19$year <- 2019
+ufpoints13 <- rename(ufpoints13, N = n2013, `(%)` = `2013 (%)`)
+ufpoints19 <- rename(ufpoints19, N = n2019, `(%)` = `2019 (%)`)
+ufpoints1319 <- bind_rows(ufpoints13, ufpoints19)
+ufpoints1319 <- ufpoints1319 |> 
+  group_by(year) |>
+  mutate(rank = rank(`(%)`, ties.method = "random")) |>
+  ungroup()
+rank2 <- seq(length.out = 27, by = 2)
+ufpoints1319$rank3 <- rank2[ufpoints1319$rank]
+ufpoints1319 <- ufpoints1319 |>
+  mutate(Nome = stringr::str_replace(Nome,"Distrito Federal","Federal District"))
+```
+
+```{r}
+#| echo: false
+#| include: false
+# analisar as variações 
+maiorq3 <- ufpoints1319 |> pivot_wider(id_cols = Nome, names_from = year, values_from = `(%)`) |> mutate(variacao = `2019` - `2013`) |> arrange(desc(variacao)) |> filter(variacao >= 3.0)
+regionincrease <- pontos1319.df |>
+  filter(Classe %in% c("Região")) %>%
+  mutate(variacao = `2019 (%)` - `2013 (%)`) |> arrange(desc(variacao))
+```
+
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+#| label: fig-risk-uf
+#| fig-width: 7.5
+#| fig-height: 7
+#| fig-pos: H
+#| fig-cap: Ranking of Brazilian states for diabetes risk \newline {\footnotesize (* indicates states with 3+ perc. point increase)}
+states_g <- ggplot(ufpoints1319, aes(year, rank)) +
+  geom_point(size = 2, aes(color=Regiao), data = ufpoints1319 |> filter(year == min(year))) + 
+  geom_text(data = ufpoints1319 |> filter(year == min(year)),
+            aes(x = year - .1, label = paste0(UFsigla, " (",`(%)`,"%)")), 
+            size = 3.5, hjust = 1, show.legend = FALSE) +
+  geom_text(data = ufpoints1319 |> filter(year == max(year)),
+            aes(x = year + .1, label = paste0(if_else(Nome %in% maiorq3$Nome, paste0(Nome, " *"), Nome)
+                                              ," (",UFsigla, " ",`(%)`,"%)"), 
+                color = Regiao), size = 3.5, hjust = 0, show.legend = FALSE) +
+  geom_bump(size = 0.8, smooth = 4 , aes(x=year, y=rank, group = UFsigla, color = Regiao), 
+            direction = "x", show.legend = FALSE) +
+  scale_x_continuous(limits = c(2011.6, 2023.7),
+                     breaks = seq(2013, 2019, 6),) +
+  scale_y_discrete(breaks = ufpoints1319$`(%)`,
+                   labels = ufpoints1319$`(%)`) +
+  theme_pubclean() +
+  theme(legend.position = "right",
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 9),
+        legend.background = element_rect(fill = "white", colour = "white", linewidth = 0),
+        legend.box.background = element_rect(fill = "white", colour = "white", linewidth = 0),
+        legend.key = element_rect(fill = "white", colour = NULL, linewidth = 0, size = 3),
+        #legend.box = element_rect(linewidth = 0),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_text(size = 9)) +
+  labs(y = NULL, x = NULL, color = "Region", fill = NULL) +
+  scale_color_wsj(palette = "colors6")
+states_g
+```
+
+```{r}
+#| eval: false
+#| include: false
+#| warning: false
+#| message: false
+
+ggsave("states.jpeg", states_g, dpi = 600)
+```
+
+
+```{r}
+#| include: false
+#| label: tbl-riskresultregioes
+#| tbl-cap: Brazilian regions' diabetes risk according to ADA algorithm
+regioespts <- pontos1319.df |>
+  mutate(Nome = str_replace(Nome, "Norte","North"),
+         Nome = str_replace(Nome, "Sul", "South"),
+         Nome = str_replace(Nome, "Sudeste","Southeast"),
+         Nome = str_replace(Nome, "Nordeste", "Northeast"),
+         Nome = str_replace(Nome, "Centro-Oeste","Central-West")) |>
+  filter(Classe %in% c("AtRisk", "Região")) |>
+  mutate(Classe = str_replace(Classe, "Região","Region")) |>
+       arrange(`2013 (%)`) |>
+  mutate(variacao = `2019 (%)` - `2013 (%)`) |> arrange(desc(variacao)) 
+regioespts |>
+       gt(rowname_col = "Nome", groupname_col = "Classe") |>
+  sub_missing() |>
+  cols_label(
+    n2013 = "N",
+    n2019 = "N",
+    "2013 (%)" = "(%)",
+    `2013 %95CI` = "95%CI",
+    "2019 (%)" = "(%)",
+    `2019 %95CI` = "95%CI",
+    variacao = "pp Incr."
+  ) %>%
+  tab_spanner(
+    label = "Characteristic",
+    columns = c(Classe)
+  ) %>%
+  tab_spanner(
+    label = "2013",
+    columns = c(n2013, `2013 (%)`, `2013 %95CI`)
+  ) %>%
+  tab_spanner(
+    label = "2019",
+    columns = c(n2019, `2019 (%)`, `2019 %95CI`)
+  ) %>%
+#  summary_rows(
+#    groups = everything(),
+#    columns = c(n2013,n2019),
+#    fns = list(
+#      total = ~ sum(., na.rm = TRUE)
+#    ),
+#    fmt = list(~ fmt_number(., decimals = 0, use_seps = TRUE)),
+#  ) %>%
+  fmt_number(
+    columns = c(n2013,n2019), 
+    decimals = 0, 
+    use_seps = TRUE
+  )
+```
+
+<!--
+@fig-riskresultregioes shows the evolution of diabetes risk in the five Brazilian regions. 
+-->
+<!-- The South region presented the biggest increase of 3 percentage points, while the Southeast region had the smallest increase of 1.4 percentage points. As the overall increase in the diabetes risk was about 3 percentage points, the observed result in Brazilian Regions is the population-weighted average of the individual state's increase or decrease. In the Southeast region, for example, São Paulo state, with the biggest population, remained with the same percentual risk of 19.9%, while Rio de Janeiro, Minas Gerais and Espírito Santo all had an increase of about 3 percentage points. 
+-->
+
+
+
+```{r}
+# https://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_municipais/municipio_2022/Brasil/BR/BR_Regioes_2022.zip
+regioesshp <- read_sf("data/IBGE/malhas_territoriais/Brasil/BR_Regioes_2022/BR_Regioes_2022.shp")
+```
+
+```{r}
+regioesshp <- regioesshp |>
+  mutate(NM_REGIAO = str_replace(NM_REGIAO, "Norte","North"),
+         NM_REGIAO = str_replace(NM_REGIAO, "Sul", "South"),
+         NM_REGIAO = str_replace(NM_REGIAO, "Sudeste","Southeast"),
+         NM_REGIAO = str_replace(NM_REGIAO, "Nordeste", "Northeast"),
+         NM_REGIAO = str_replace(NM_REGIAO, "Centro-oeste","Central-West")) 
+#regioesp <- filter(regioespts, Classe=="Region") |> select(-`2013 %95CI`,-`2019 %95CI`, -Classe) 
+regioesshp <- left_join(regioesshp,
+                        filter(regioespts, Classe=="Region") |> 
+                          select(-`2013 %95CI`,-`2019 %95CI`, -Classe), 
+                        by = join_by(NM_REGIAO==Nome))# |>
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| label: fig-riskresultregioes
+#| fig-cap: Brazilian regions' diabetes risk according to ADA algorithm \newline {\footnotesize (inside the map are region's names, with 2013 and 2019 percent risk values)}
+#| fig-width: 7.5
+#| fig-pos: H
+
+regions_g <- ggplot(data=regioesshp)+
+  theme_void()+
+  geom_sf(aes(fill=as.character(variacao)), color = "black") +
+  geom_sf_label(aes(label = paste0(NM_REGIAO, "\n", `2013 (%)`," - ",`2019 (%)`)), 
+                    size = 3, show.legend = FALSE) +
+  labs(fill="Perc. points\nincrease") +
+#  scale_fill_wsj(palette = "colors6")
+  scale_fill_brewer(palette = "Oranges", type = "seq")
+regions_g
+```
+
+```{r}
+#| eval: false
+#| include: false
+#| warning: false
+#| message: false
+
+ggsave("regions.jpeg", regions_g, dpi = 600)
+```
+
+An additional result, obtained analysing PNS data by Brazil's regions, is related to percentage of the population that never had diabetes diagnostic. For 2013, the values for North, Northeast, Central-West, South and Southeast regions are: 19.0, 15.6, 14.9, 13.2 and 8.6; for 2019, the values are: 12.4, 9.5, 6.8, 5.9 and 4.4, respectively.
+
+<!--
+North and Northeast regions show the greatest values for both 2013 and 2019 data, respectively, closely followed by Central-West. Southeast and South regions show the smallest values. 
+
+Percentage of population that never had diabetes diagnostic:
+
+* 2013
+   * North: 19.0
+   * Northeast: 15.6 
+   * Central-West: 14.9
+   * South: 13.2
+   * Southeast: 8.6
+* 2019
+   * North: 12.4
+   * Northeast: 9.5
+   * Central-West: 6.8
+   * South: 5.9
+   * Southeast: 4.4 
+-->
+
+<!--
+These results corroborate the results of the study of Reis et al [@reis_evolution_2022], that is, overall, there was increases in diabetes diagnostic, and so, the overall prevalence of diabetes can show increased values, as shown in @tbl-diabetes-prev. -->
+
+# Discussion {.unnumbered}
+
+```{r}
+#| echo: false
+risk_incr1913 <- round((N1319Risco$N2019 - N1319Risco$N2013)/N1319Risco$N2013,3)*100
+pop18mais_incr1913 <- round((pop19_18mais - pop13_18mais)/pop13_18mais,3)*100
+risk_age651913 <- pontos1319.df[pontos1319.df$Nome=="65+", c("n2013","n2019")]
+risk65 <- round((risk_age651913$n2019 - risk_age651913$n2013)/risk_age651913$n2013,3)*100
+```
+
+
+As can be seen in @tbl-riskresult, the number of people at risk of developing diabetes has increased from about `r round(N1319Risco$N2013/1000000,0)` million in 2013 to approximately `r round(N1319Risco$N2019/1000000,0)` million in 2019, representing 15.9% and 19.0% of the population, respectively. This means an crude increase of about `r risk_incr1913`%. The population over which the algorithm ran grew from about `r round(pop13_18mais/1000000,0)` million in 2013 to approximately `r round(pop19_18mais/1000000,0)` million people in 2019, that is, a growth of about `r pop18mais_incr1913`%. 
+
+In spite of being a sound growth in the people at risk, it's still smaller than the diabetes prevalence increase in the same period; as reported by Reis et al [@reis_evolution_2022], the absolute increase was about 36.4%. One of the possible explanation for these numbers is that there was a big drop in the number of people that never had diabetes diagnostics (from 11.6% to 6.2%, respectively, for 2013 and 2019 -- @tbl-diabetes-prev); this can lead to an increase in the prevalence (more cases detected) while can further reduce the population over which the risk assessment algorithm will run (we exclude people with positive diabetes diagnosis). 
+
+Women and Men showed opposite patterns, with a slightly increase for Men, from 40.8% to 42.2% and a slightly decrease for Women, from 59.2% to 57.8%, respectively for 2013 and 2019 data. This is somewhat different from diabetes prevalence behavior in @tbl-diabetes-prev, where both Women and Men showed increase in their diabetes prevalence rate. 
+
+Both results corroborate the global trend observed for diabetes -- a steady increase in prevalence, while the world population increasingly adheres to unhealthy habits. Population aging can also help to understand the increase in prevalence and also the increase of at risk people. In 2013, 42.3% of the 65+ people were at risk; in 2019, this figure went to 46.0% of the 65+ people, representing a crude increase of `r risk65`% for the number of people at this age. <!-- an increase of 3.7 percentage points, again, more than the double of the overall increase in diabetes prevalence from 2013 to 2019. --> 
+
+Race and Skin Color data (@tbl-riskresult) show that those self-declared "white" had a decrease in their rate of risk, while all other self-declared conditions showed increase, with "Indigenous" people showing the biggest increase, more than doubling from 2013 to 2019; this can be due to more "contamination" with urban habits, including industrialized or unhealthy food habits, or even a decrease in physical activities due also to access to more industrialized tools for agriculture or general mobility (motorcycles, cars, etc) [@mouraPopulacaoIndigenaUma2010], [@travassosPercepcoesFatoresAssociados2018a]. 
+
+Education level data from @tbl-riskresult, show an increase in the proportion of people at risk for all levels, but for the Incomplete elementary level, that shows a decrease of about 5 percent points; one possible explanation for this scenario is that Brazil has experienced a sustained increase in elementary education level, with more people finishing at least this level and so diminishing this group' size [@educacao2022pnadibge]; however, deeper studies should be necessary to confirm this, since prevalence data show a different behavior, that is, an increase of diabetes prevalence for all education levels [@reis_evolution_2022].
+
+Overweight and obesity are a global health problem, reported in several WHO publications [@worldhealthorganizationObesityOverweight2021]; Brazil has experienced also an increase in these indicators; obesity in the population aged 20+ years increased from 12.2% to 26.8%, between 2003 and 2019, respectively [@portalgov.br-saudePesquisaIBGEMostra]. Data from @tbl-riskresult show that, in spite of the increase in obesity prevalence, diabetes risk for these people has decreased from 47.9% in 2013 to 42.5% in 2019; one factor that might have contributed to this is that for those with obesity, there was an increase from 3.5% to 4.7% in the practice of physical activity (using the **prat_ativ** variable for PNS 2013 and 2019 data). For those with overweight condition, however, diabetes risk has increased from 39.7% to 41.7% for the same period; from PNS 2013 and 2019 data, we found that for this group, there was an increase from 7.0% to 10.2% in the practice of physical activity, but there was also an increase in percentage of people with overweight, going from 35.7% in 2013 to 36.4% in 2019, for the @tbl-riskresult population.
+
+It's also a concern the fact that people with normal weight showed an increase for diabetes risk, from 12.5% in 2013 to 15.8% in 2019, specially when data from PNS 2013 and 2019 reveal that there was a decrease from 43.8% to 42.6% in this group's size. 
+
+Hypertension and diabetes is a high risk combination [@elliottHTDiabetes2000],[@sowersHTDiabetes2000],[@deboerDiabetesHTADA2017]. Several complications have risks increased in diabetics patients when associated with hypertension, such as, end-stage renal disease, coronary artery disease, stroke, peripheral vascular disease and diabetic retinopathy. From @tbl-riskresult we observe that there was an increase in the proportion of people with hypertension that are in risk of diabetes; in fact, the already high proportion of 67.8% in 2013, grew to 72.3% in 2019. Some other facts make this number still worse, such as, from those of @tbl-riskresult with Hypertension in 2019, only 23.4% practice physical activity, and 70.6% are overweight or with obesity. This triple association, obesity, hypertension and diabetes, has an even higher risk of complications, adding to the earlier mentioned, insulin resistance, gallstones and some others [@pi-sunyerMedicalRisksObesity2002]. 
+
+Looking at @fig-risk-uf we can see that, overall, there was a 3 percentage points increase for the whole range, so that the minimal value increased from 9.9% to 12.7% and the maximum from 21.5% to 24.2%. All states, but one and the Federal District, presented increases in the risk values, and some states experienced major increases of about 5 percentage points in diabetes risk. There were 10 states with increases above or equal 3 percentage points, indicated with an "*" near their names. The Federal District presented a decrease in risk value of 0.2 percentage point and Rio Grande do Norte state had a decrease of 1.4 percentage points.
+
+```{r}
+#| echo: false
+#| include: false
+library(readr)
+library(dplyr)
+# downloaded from IBGE Cidades e Estados
+IDH_raw <- read_csv("data/IBGE/IDH/Índice de Desenvolvimento Humano.csv", 
+    col_types = cols(Posição = col_skip(), 
+        Unidade = col_skip(), Multiplicador = col_skip()))
+IDH_estados <- IDH_raw |>
+  rename_with(~ paste0("A", .x, recycle0 = TRUE), starts_with(c("1","2"))) |>
+  select(-Nome) |>
+    rename(Nome=Localidade)
+IDH_estados <- IDH_estados |>
+  mutate(NomeUF = iconv(Nome, to='ASCII//TRANSLIT'))
+IDH_estados |>
+  arrange(desc(A2019))
+```
+
+```{r}
+#| echo: false
+#| include: false
+risk_hdi19 <- left_join(select(ufpoints19, Nome, `(%)`,Regiao,UFsigla), select(IDH_estados, Nome,NomeUF, A2019), by = c("Nome"="NomeUF")) %>% rename(PercRisk=`(%)`)
+risk_hdi19 %>% arrange(desc(PercRisk))
+```
+
+```{r}
+#| echo: false
+#| include: false
+risk_hdi19$HDI_class <- cut(risk_hdi19$A2019, c(0,0.550,0.699,0.799,1), labels = c("Low","Medium","High","Very High"))
+```
+```{r}
+#| echo: false
+#| include: false
+risk_hdi19 |> arrange(Regiao, desc(A2019)) |> select(-Nome.y,UFsigla)
+```
+
+
+```{r}
+#| echo: false
+#| include: false
+cor.test(risk_hdi19$PercRisk,risk_hdi19$A2019, method = "spearman")
+```
+
+
+```{r}
+#| echo: false
+#| include: false
+# for High HDI
+high_hdi <- risk_hdi19 |> filter(A2019 >= 0.7, A2019 <=0.799)
+cor.test(high_hdi$PercRisk,high_hdi$A2019, method = "spearman")
+```
+
+
+```{r}
+#| echo: false
+#| include: false
+chisq.test(risk_hdi19$PercRisk,risk_hdi19$A2019)
+```
+
+```{r}
+#| echo: false
+#| include: false
+chisq.test(high_hdi$PercRisk,high_hdi$A2019)
+```
+
+
+```{r}
+#| echo: false
+#| include: false
+# developing countries; accord. UNDP HDI >= 0.788 are developed, all others are developing
+developing_hdi <- risk_hdi19 |>
+  filter(A2019 < 0.788)
+```
+
+```{r}
+#| echo: false
+#| include: false
+cor.test(developing_hdi$PercRisk, developing_hdi$A2019, method = "spearman")
+```
+
+```{r}
+#| echo: false
+#| include: false
+chisq.test(developing_hdi$PercRisk,developing_hdi$A2019)
+```
+
+<!-- aqui tem uma serie historica do IDH do Brasil:
+https://pt.countryeconomy.com/demografia/idh/brasil
+-->
+
+When pairing the ranks of Brazilian's States in @fig-risk-uf, with their corresponding Human Developing Index (HDI) for the year 2019[@ibgeIDHSaoPaulo], we found a positive Spearman's correlation between diabetes risk and HDI ranking (r= 0.46, p=0.01531). It's worth noting that, from the top 10 states by diabetes risk, only 2 are not in the top 10 states by HDI rank, namely, Paraíba and Pernambuco, ranked 7th and 10th, respectively; conversely, from the top 10 states by HDI, the two missing states are Federal District and Mato Grosso. 
+The relationship between HDI and diabetes prevalence has been studied by some authors[@maoGlobalViewPrevalence2021], [@xuSocioeconomicStatusAssociated2017], who found that for developing countries (HDI < 0.788),  there's a positive correlation between HDI and diabetes prevalence; Brazil's HDI was 0.766	in 2019[@undpBrazil], exactly in the range of developing countries according to UNDP criteria. 
+Of course it's not possible to explain the risk rank based solely on the HDI, specially because this is a counter intuitive result, meaning, the bigger the HDI we would think the healthier the population. But, as mentioned earlier, this same result was found for diabetes prevalence, where socioeconomic status improvement is leading to more obesity and sedentary lifestyle among the population [@xuSocioeconomicStatusAssociated2017], and thus, increasing diabetes prevalence and of course, diabetes risk.
+
+
+<!-- não sei se esse parágrafo está bom -->
+<!--
+South and Southeast region's states present the biggest values for diabetes risk; with North and Northeast presenting the lowest values. One interesting fact is that this almost the opposite relation found in demography density of these regions. According to the latest Brazil's census [@ibgecenso2022], demography density is 91.76, 51.91, 35.21, 10.14 and 4.51 (inhab/km^2) for Southeast, South, Northeast, Central-West and North regions, respectively. More studies are necessary to help to fully understand this, but it's known that higher demography density, bigger cities, higher stress levels, higher anxiety levels, and so on. 
+-->
+
+As can be seen in @fig-riskresultregioes, the South region presented the biggest increase of 3 percentage points, while the Southeast region had the smallest increase of 1.4 percentage points. As the overall increase in the diabetes risk was about 3 percentage points, the observed result in Brazilian regions is the population-weighted average of the individual state's increase or decrease. In the Southeast region, for example, São Paulo state, with the biggest population, remained with the same percentual risk of 19.9%, while Rio de Janeiro, Minas Gerais and Espírito Santo all had an increase of about 3 percentage points.
+
+Consistently with HDI values for individual states, Brazil's regions show the same trend for diabetes risk as for HDI; all states in South region are in the Very High HDI range; the two Southeast states that aren't in the Very High HDI range, miss this classification by less than 0.007, meaning they're at the top of the High range. These two regions showed the highest values for diabetes risk, as already found for the individual states and in agreement with diabetes prevalence studies mentioned earlier. 
+
+
+# Final Considerations {.unnumbered}
+
+As we have found in scientific literature we cited in this work, diabetes poses a major challenge to the healthcare infrastructure of all countries, ranging from increasing treatment and associated costs, to public policies aiming to reduce its incidence. This work's objective was to assess the diabetes risk of the Brazilian population, faceting the results by important aspects, with detailed analysis and discussion. To our knowledge, this is the first nation-wide study of diabetes risk for the entire Brazilian population aged 18+ years; the assessment was done using a validated algorithm, and the results are in good agreement with prevalence studies, not only for Brazil, but also with global studies, showing a increase trend in diabetes prevalence worldwide. The results of this work can inform the development of public policies for specific population groups, states or regions of Brazil, leading to more efficient public money expenditure. All scripts used in this work are in a public repository specified in Research data availability section, further analysis can easily be carried out, deepening or expanding the results showed here.
+
+One important limitation of this work is the same of all work derived from PNS data; health conditions are self-declared; for PNS 2013 there was a small group for what clinical examination was also performed, but we didn't use such data. In spite of the limitation mentioned here, PNS data has been validated by all analysis done by so many authors, institutions and research groups, and their results has been published, after being carefully reviewed.
+
+As a final remark, it's important to highlight the relevance of the "National Health Survey" (PNS) for nationwide health studies. PNS contains many invaluable data on the Brazilian population's health assessment, and this wonderful data treasury has being constantly explored by scientists throughout the country and beyond. We urge the Health Ministry to continue and expand the PNS survey. One suggestion for expansion would be adding a question about the relatives (mother, father, sister or brother) with diabetes or other chronic diseases; this was the only missing information for the ADA risk assessment algorithm.
+
+<!--
+Finally, all the R scripts used in this paper are available in the public GitHub repository `https://github.com/ipencnensp/diabetesPNSpub`.
+-->
+
+<!--
+representing an `r round((N1319Risco$N2019 - N1319Risco$N2013)/N1319Risco$N2013*100,2)`% growth. Brazil's population increased from 200,004,188 to	210,147,125	 in the same period, representing an 5% growth, that is, people at risk for diabetes had a 4 fold higher increase.
+-->
+
+
+
+
+# Acknowledgements {.unnumbered}
+
+The ADA algorithm implementation used in this work was adapted from the unpublished undergraduate final project named "Análise dos Fatores Preditivos da Diabetes por Ciência de Dados" (Analysis of Diabetes Predictive Factors by Data Science) developed by Aguirre, D.B., Souza, G.R. and Alves, H.S., at the Mackenzie Presbyterian University, Computing and Informatics College in 2020.
+
+Authors are grateful to Dr. Simone Cristina Soares Brandão for her valuable suggestions for the manuscript.
+
+# Author's contribution
+
+Marcelo Moreira da Silva was responsible for writing and reviewing the manuscript.
+
+Mário Olímpio de Menezes was responsible for the conceptualization, data curation and analysis, methodology and writing the original draft.
+
+Both authors were responsible for reviewing the final version.
+
+# Conflict of Interests
+
+Authors declare no conflict of interests.
+
+# Research Data availability
+
+All the R scripts used in this paper are available in the public GitHub repository \newline `https://github.com/ipencnensp/diabetesPNSpub`.
+
+PNS data is available at FIOCRUZ website `https://www.pns.icict.fiocruz.br/`; a script is provided to automatically download PNS data to reproduce all analysis.
+
+<!-- this table is not in the final article; moved here because the label is incrementing the table counter wrongly -->
+
+```{r}
+#| echo: false
+#| eval: false
+#| include: false
+#| label: tbl-diabetes-seg
+#| tbl-cap: "Breakdown of diabetes prevalence (only positive diagnostic)"
+diab1319.df %>% 
+#  filter(Classe == "Age(years)") %>%
+     gt(rowname_col = "Nome", groupname_col = "Classe") %>%
+  sub_missing() %>%
+  cols_label(
+    n2013 = "N",
+    n2019 = "N",
+    "2013 (%)" = "(%)",
+    `2013 %95CI` = "95%CI",
+    "2019 (%)" = "(%)",
+    `2019 %95CI` = "95%CI"
+  ) %>%
+  tab_spanner(
+    label = "Characteristic",
+    columns = c(Classe)
+  ) %>%
+  tab_spanner(
+    label = "2013",
+    columns = c(n2013, `2013 (%)`, `2013 %95CI`)
+  ) %>%
+  tab_spanner(
+    label = "2019",
+    columns = c(n2019, `2019 (%)`, `2019 %95CI`)
+  ) %>%
+  summary_rows(
+    groups = TRUE,
+    columns = c(n2013,n2019),
+    fns = list(
+      total = ~sum(.)
+    ),
+    formatter = fmt_number,
+    decimals = 0,
+    use_seps = TRUE
+  ) %>%
+  fmt_number(
+    columns = c(n2013,n2019), 
+    decimals = 0, 
+    use_seps = TRUE
+  ) #%>%
+#  tab_header(
+#    title = md("Prevalence of Diabetes according to Age, Race/Skin Color, Education, BMI and Hypertension"),
+#    subtitle = md("Data from PNS 2013 and 2019")
+#  )
+```
+
+# References {.unnumbered}
+
+::: {#refs}
+:::

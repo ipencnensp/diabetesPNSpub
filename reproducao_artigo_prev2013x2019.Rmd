@@ -45,12 +45,21 @@ options("survey.multicore" = TRUE)
 
 ```{r lendopns2013}
 # usando a biblioteca rio
-pns2013.1 <- import("data/PNSIBGE_Rpkg/pns2013microdata_get_pns20230505.csv")
+pns2013.1 <- import("~/datasets/IBGE/PNS/PNSIBGE_Rpkg/pns2013microdata_get_pns20221124.csv")
 ```
 
 
 Em 24 de novembro de 2022 mudei a base e passei a usar a base recuperada através do pacote `PNSIBGE`; isso porque na página do IBGE há um registro de todas as alterações e suas respectivas datas, permitindo maior reprodutibilidade dos resultados.
 
+<!--
+Verificando que a base que usamos é exatamente a mesma da Fiocruz.
+
+```{r eval = FALSE, echo = TRUE}
+hoje <- as.character(lubridate::today())
+download.file("https://www.pns.icict.fiocruz.br/wp-content/uploads/2021/06/pns2013.rdata", destfile = glue::glue("~/datasets/IBGE/PNS/2013/pns2013_dwnld_",hoje,".rdata", sep = ""))
+system("md5sum ~/datasets/IBGE/PNS/2013/*rdata")
+```
+-->
 
 
 ```{r pns2013, echo = TRUE}
@@ -224,7 +233,7 @@ tbl_fxetaria <- pns2013.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
-  adorn_ns(,,,position="front",Men:Total ) %>%
+ adorn_ns(,,position="front",Men:Total ) %>%
  select(`Age(years)`=fxetaria2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_fxetaria %>%
   flextable()
@@ -244,7 +253,7 @@ tbl_imcclass <- pns2013.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
- adorn_ns(,,,position="front",Men:Total ) %>%
+ adorn_ns(,,position="front",Men:Total ) %>%
  select(`Body mass index(kg/m²)`=imcclass2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_imcclass %>%
   flextable()
@@ -265,7 +274,7 @@ tbl_fxesc <- pns2013.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
-  adorn_ns(,,,position="front",Men:Total ) %>%
+  adorn_ns(,,position="front",Men:Total ) %>%
   select(`Education level`=fx_esc, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_fxesc %>%
   flextable()
@@ -287,7 +296,7 @@ tbl_raceskin <- pns2013.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
-  adorn_ns(,,,position="front",Men:Total ) %>%
+  adorn_ns(,,position="front",Men:Total ) %>%
   select(`Race/Skin color`=RaceSkinColor, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_raceskin %>%
   flextable()
@@ -310,7 +319,7 @@ tbl_hyperten <- pns2013.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
-  adorn_ns(,,,position="front",Men:Total ) %>%
+  adorn_ns(,,position="front",Men:Total ) %>%
   select(Hypertension, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_hyperten %>%
   flextable()
@@ -322,10 +331,15 @@ tbl_hyperten <- rename(tbl_hyperten, caract = Hypertension)
 
 
 ```{r tblcaract}
-tbls_caract <- rbind(tbl_fxetaria, tbl_raceskin, tbl_fxesc, tbl_imcclass, tbl_hyperten)
+tbl_fxetaria$caract <- as.character(tbl_fxetaria$caract)
+tbl_raceskin$caract <- as.character(tbl_raceskin$caract)
+tbl_fxesc$caract <- as.character(tbl_fxesc$caract)
+tbl_imcclass$caract <- as.character(tbl_imcclass$caract)
+tbl_hyperten$caract <- as.character(tbl_hyperten$caract)
+tbls_caract <- bind_rows(tbl_fxetaria, tbl_raceskin, tbl_fxesc, tbl_imcclass, tbl_hyperten)
 ```
 
-```{r tblgt, include = FALSE}
+```{r tblgt, include = TRUE}
 tbls_caract %>% 
   rename(` `=caract) %>%
   gt() %>%
@@ -456,8 +470,8 @@ todos_hyper13 <- as.data.frame(svyby(~one, ~Hypertension, pns_design_srvyr13, sv
 ### PNS 2013 - Diabetes
 
 ```{r}
-com.diabetes.wt.df <- subset(pns_design_srvyr13, diabetes == 1 | diabetes == 2)
-com.diabetes.wt <- round(as.data.frame(svytotal(~diabetes, com.diabetes.wt.df))[1,1],0)
+com.diabetes2013.wt.df <- subset(pns_design_srvyr13, diabetes == 1)
+com.diabetes2013.wt <- round(as.data.frame(svytotal(~diabetes, com.diabetes2013.wt.df))[1,1],0)
 ```
 
 ```{r diabetes2013, tab.cap = "PNS 2013 - Diabetes (all)"}
@@ -529,18 +543,32 @@ diabetes.homens2013 %>% adorn_totals() %>%
 
 #### Diabetes por Faixa Etária
 
+Vou calcular os percentuais dentro de cada classe, usando o total de pessoas com diabetes (`r com.diabetes2013.wt`) como 100%.
+
 ```{r diabfxetaria, include = FALSE, tab.cap = "PNS 2013 - Diabetes by Age (all)"}
-diabetes.fxetaria <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci") %>%
+diabetes2013.fxetaria <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci") %>%
   mutate_if(is.numeric,as.integer) %>%
   bind_cols(select(todos_fxetaria2,-fxetaria2)) %>%
-  mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  mutate(diab_perc = round(diabetes/com.diabetes2013.wt*100,1), ci_l_perc = round(ci_l/com.diabetes2013.wt*100,1), ci_u_perc = round(ci_u/com.diabetes2013.wt*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
   select(`Age(years)`=fxetaria2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
-diabetes.fxetaria %>% flextable() %>% autofit()
+diabetes2013.fxetaria %>% flextable() %>% autofit()
 ```
 
 
 
+```{r eval=FALSE}
+saveRDS(diabetes2013.fxetaria,"diabetesonly2013fxetaria.rds")
+```
 
+
+```{r diabfxetaria, include = FALSE, tab.cap = "PNS 2013 - Diabetes by Age (all)"}
+diabetes.fxetaria <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr13, diabetes == 1), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(todos_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/todos*100,1), ci_l_perc = round(ci_l/todos*100,1), ci_u_perc = round(ci_u/todos*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2013 (%)`= diab_perc,`2013 %95CI`=`%95CI`)
+diabetes.fxetaria %>% flextable() %>% autofit()
+```
 
 
 
@@ -720,7 +748,7 @@ diabetes2013_gt <- bind_rows(diabetes2013, diabetes.mulheres2013, diabetes.homen
 
 
 ```{r eval = FALSE}
-saveRDS(diabetes2013_gt, file = "diabetes2013_gt_20230505.rds", compress = TRUE)
+saveRDS(diabetes2013_gt, file = "diabetes2013_gt.rds", compress = TRUE)
 ```
 
 
@@ -737,11 +765,19 @@ diabetes2013_gt %>%
 
 Em 24 de novembro de 2022 mudei a base e passei a usar a base recuperada através do pacote `PNSIBGE`; isso porque na página do IBGE há um registro de todas as alterações e suas respectivas datas, permitindo maior reprodutibilidade dos resultados.
 
+<!--
+Verificando se a base que usamos é a mesma da Fiocruz
 
+```{r eval = FALSE, echo = TRUE}
+hoje <- as.character(lubridate::today())
+download.file("https://www.pns.icict.fiocruz.br/wp-content/uploads/2021/06/pns2019.rdata", destfile = glue::glue("~/datasets/IBGE/PNS/2019/pns2019_dwnld_",hoje,".rdata", sep = ""))
+system("md5sum ~/datasets/IBGE/PNS/2019/*rdata")
+```
+-->
 
 ```{r lendopns2019}
 # usando a biblioteca rio
-pns2019.1 <- import("data/PNSIBGE_Rpkg/pns2019microdata_get_pns20230505.csv")
+pns2019.1 <- import("~/datasets/IBGE/PNS/PNSIBGE_Rpkg/pns2019microdata_get_pns20221124.csv")
 ```
 
 
@@ -941,7 +977,7 @@ tbl_fxetaria19 <- pns2019.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
- adorn_ns(,,,position="front",Men:Total ) %>%
+ adorn_ns(,,position="front",Men:Total ) %>%
  select(`Age(years)`=fxetaria2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_fxetaria19 %>%
   flextable()
@@ -955,7 +991,7 @@ tbl_imcclass19 <- pns2019.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
- adorn_ns(,,,position="front",Men:Total ) %>%
+ adorn_ns(,,position="front",Men:Total ) %>%
  select(`Body mass index(kg/m²)`=imcclass2, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_imcclass19 %>%
   flextable()
@@ -971,7 +1007,7 @@ tbl_fxesc19 <- pns2019.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
-  adorn_ns(,,,position="front",Men:Total ) %>%
+  adorn_ns(,,position="front",Men:Total ) %>%
   select(`Education level`=fx_esc, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_fxesc19 %>%
   flextable()
@@ -989,7 +1025,7 @@ tbl_raceskin19 <- pns2019.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
-  adorn_ns(,,,position="front",Men:Total ) %>%
+  adorn_ns(,,position="front",Men:Total ) %>%
   select(`Race/Skin color`=RaceSkinColor, Total, Men, Women)
 tbl_raceskin19 %>%
   flextable()
@@ -1004,7 +1040,7 @@ tbl_hyperten19 <- pns2019.1 %>%
   adorn_totals(c("row","col")) %>%
   adorn_percentages(,denominator = "col") %>%
   adorn_pct_formatting(,digits=1,affix_sign = FALSE,Men:Total) %>%
-  adorn_ns(,,,position="front",Men:Total ) %>%
+  adorn_ns(,,position="front",Men:Total ) %>%
   select(Hypertension, `Total \n n (%)`=Total, `Men \n n (%)`=Men, `Women \n n (%)`=Women)
 tbl_hyperten19 %>%
   flextable()
@@ -1106,6 +1142,11 @@ todos_hyper19 <- as.data.frame(svyby(~one, ~Hypertension, pns_design_srvyr19, sv
 ### PNS 2019 - Diabetes
 
 
+```{r}
+com.diabetes2019.wt.df <- subset(pns_design_srvyr19, diabetes == 1)
+com.diabetes2019.wt <- round(as.data.frame(svytotal(~diabetes, com.diabetes2019.wt.df))[1,1],0)
+```
+
 ```{r diabetes2019, tab.cap = "PNS 2019 - Diabetes (all)"}
 diabetes2019 <- svyby(~one, ~diabetes, pns_design_srvyr19, svytotal, vartype = "ci", Ntotal = 100)
 total2019 <- sum(total_genders19[,2])
@@ -1182,6 +1223,24 @@ diabetes.fxetaria19 <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr19, d
   mutate(diab_perc = round(diabetes/total_fx*100,1), ci_l_perc = round(ci_l/fx_ci_l*100,1), ci_u_perc = round(ci_u/fx_ci_u*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
   select(`Age(years)`=fxetaria2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
 diabetes.fxetaria19 %>% flextable() %>% autofit()
+```
+
+
+Calculando os percentuais considerando somente os que têm diabetes
+
+```{r diabfxetaria19, include = FALSE, tab.cap = "PNS 2019 - Diabetes by Age (all)"}
+diabetes2019.fxetaria19 <- svyby(~diabetes,~fxetaria2,  subset(pns_design_srvyr19, diabetes == 1), svytotal, vartype = "ci") %>%
+  mutate_if(is.numeric,as.integer) %>%
+  bind_cols(select(todos19_fxetaria2,-fxetaria2)) %>%
+  mutate(diab_perc = round(diabetes/com.diabetes2019.wt*100,1), ci_l_perc = round(ci_l/com.diabetes2019.wt*100,1), ci_u_perc = round(ci_u/com.diabetes2019.wt*100,1), `%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(`Age(years)`=fxetaria2, n=diabetes, `2019 (%)`= diab_perc,`2019 %95CI`=`%95CI`)
+diabetes2019.fxetaria19 %>% flextable() %>% autofit()
+```
+
+
+
+```{r eval = FALSE}
+saveRDS(diabetes2019.fxetaria19,"diabetesonly2019fxetaria.rds")
 ```
 
 
@@ -1356,7 +1415,7 @@ diabetes2019_gt <- bind_rows(diabetes2019_tbl, diabetes.mulheres19_tbl, diabetes
 ```
 
 ```{r eval = FALSE}
-saveRDS(diabetes2019_gt, file = "diabetes2019_gt_20230505.rds", compress = TRUE)
+saveRDS(diabetes2019_gt, file = "diabetes2019_gt.rds", compress = TRUE)
 ```
 
 
@@ -1376,7 +1435,7 @@ diab1319.df <- bind_cols(diab2013.df, select(diab2019.df, -Nome,-Classe))
 
 
 ```{r eval = FALSE}
-saveRDS(diab1319.df, file = "diab1319_20230505.rds", compress = TRUE)
+saveRDS(diab1319.df, file = "diab1319.rds", compress = TRUE)
 ```
 
 
@@ -1455,10 +1514,20 @@ projpop1319 <- projpopsimples %>%
 
 ```{r  echo = TRUE}
 fxetariascut <- projpop1319 %>% 
-  group_by(cut(projpop1319$IDADE,breaks = c(0,15,18,25,35,45,55,65,Inf), include.lowest = TRUE)) %>%
-#  group_by(cut(projpop1319$IDADE,breaks = c(0,18,25,40,50,65,Inf), right = FALSE, include.lowest = TRUE)) %>%
-  summarise(across(.cols = dplyr::starts_with("a"),.fns = sum)) 
-fxetariascut %>% flextable() %>% autofit()
+#  filter(IDADE>= 18) %>%
+#  group_by(cut(projpop1319$IDADE,breaks = c(0,15,18,25,35,45,55,65,Inf), include.lowest = TRUE)) %>%
+#  group_by(cut(projpop1319$IDADE,breaks = c(0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,Inf), right = FALSE, include.lowest = TRUE)) %>%
+#  group_by(cut(projpop1319$IDADE,breaks = c(17.9,24.9,39.9,49.9,64.9,Inf), 
+#               labels = c("18-24","25-39","40-49","50-64","65+"))) %>%
+#  group_by(cut(projpop1319$IDADE,breaks = c(14.9,17.9,24.9,39.9,49.9,64.9,Inf),
+#                      labels = c("15-17","18-24","25-39","40-49","50-64","65+"))) %>%
+  group_by(cut(projpop1319$IDADE,breaks = c(14.9,17.9,24.9,34.9,44.9,54.9,64.9,Inf),
+                      labels = c("15-17","18-24","25-34","35-44","45-54","55-64","65+"))) %>%
+    summarise(across(.cols = dplyr::starts_with("a"),.fns = sum)) %>%
+  filter(!is.na(`cut(...)`))
+
+fxetariascut %>% 
+    adorn_totals() #%>% adorn_percentages(denominator = "col")
 ```
 
 ```{r  echo = TRUE}

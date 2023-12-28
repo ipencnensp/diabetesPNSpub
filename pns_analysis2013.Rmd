@@ -23,6 +23,7 @@ library(ggplot2)
 library(tidyverse)
 library(dplyr)
 library(knitr)
+library(kableExtra)
 library(tidyr)
 library(janitor)
 library(pander)
@@ -46,9 +47,9 @@ library(rio)
 options("survey.multicore" = TRUE)
 ```
 
-```{r lendopns2013}
+```{r lendopns2019}
 # usando a biblioteca rio
-pns2013.1 <- import("data/PNSIBGE_Rpkg/pns2013microdata_get_pns20230505.csv")
+pns2013.1 <- import("~/datasets/IBGE/PNS/PNSIBGE_Rpkg/pns2013microdata_get_pns20221124.csv")
 ```
 
 ```{r}
@@ -510,6 +511,29 @@ df <- df %>%
 ```
 
 
+```{r}
+prat_ativ_bmi_ndiab13 <- svyby(~one, ~prat_ativ + imcclass2, subset(df, diabetes != 1), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+prat_ativ_bmi_ndiab13.df <- prat_ativ_bmi_ndiab13 %>% as_tibble() %>%
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1),
+         ci_l_perc = round(ci_l/sum(one)*100,1),
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-ci_l, -ci_u)
+prat_ativ_bmi_ndiab13.df %>% flextable() %>% autofit()
+```
+
+
+```{r}
+prat_ativ_bmi_diab13 <- svyby(~one, ~prat_ativ + imcclass2, subset(df, diabetes == 1), svytotal, vartype = "ci", Ntotal = 100, multicore = TRUE)
+prat_ativ_bmi_diab13.df <- prat_ativ_bmi_diab13 %>% as_tibble() %>%
+  mutate(one = round(one,0),
+         `(%)` = round(one/sum(one)*100,1),
+         ci_l_perc = round(ci_l/sum(one)*100,1),
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-ci_l, -ci_u)
+prat_ativ_bmi_diab13.df %>% flextable() %>% autofit()
+```
+
 ## Risc Assessment Algorithm
 
 
@@ -847,7 +871,7 @@ flextable() %>% theme_booktabs()
 ```
 
 ```{r}
-saveRDS(x, file = "distribuicaoNAsrisco2013_20230505.rds", compress = TRUE)
+saveRDS(x, file = "distribuicaoNAsrisco2013.rds", compress = TRUE)
 ```
 
 Portanto, nas análises dos dados é preciso considerar esses NAs distribuídos nas quatro classes da variável `diabetes`. Para aqueles que Não tem Diagnóstico ou Nunca fizeram exame, o total será:
@@ -1011,7 +1035,7 @@ pontos_total13.df %>%
 
 
 ```{r tab.cap = "PNS 2013 - Risco por Gênero - Diabetes gestacional, diagnóstico negativo e Sem Exame"}
-pontos_genero13.df <- pontos_genero2013 %>% 
+pontos_genero_2013.df <- pontos_genero2013 %>% 
   filter(risco == 1) %>%
   mutate(one = round(one,0),
          `(%)`=round(one/sum(one)*100,1), 
@@ -1022,12 +1046,48 @@ pontos_genero13.df <- pontos_genero2013 %>%
   select(-ci_l_perc,-ci_u_perc) %>%
   rename(N=one)
 
-pontos_genero13.df %>% 
+pontos_genero_2013.df %>% 
   adorn_totals() %>%
   flextable() %>% autofit()
 ```
 
 pontos_genero2013 <- svyby(~one, ~risco + gender, subset(df, diabetes != 1 & !is.na(risco)), svytotal, vartype = "ci", Ntotal = 1, multicore = TRUE)
+
+
+
+Pontos dos diabéticos
+
+```{r}
+pontos_diab <- pontos_gerais[pontos_gerais$diabetes == 1 & !is.na(pontos_gerais$diabetes) & !is.na(pontos_gerais$risco),]
+```
+
+```{r}
+pontos_diab
+```
+
+
+```{r}
+pontos_pregnancy2013 <- svyby(~one, ~risco + gender, subset(df, diabetes == 2), svytotal, vartype = "ci", Ntotal = 1, multicore = TRUE)
+pontos_pregnancy2013
+```
+
+
+```{r}
+pontos_pregnancy2013.df <- pontos_pregnancy2013 %>%
+  mutate(one = round(one,0),
+         `(%)`=round(one/sum(one)*100,1), 
+         ci_l_perc = round(ci_l/sum(one)*100,1), 
+         ci_u_perc = round(ci_u/sum(one)*100,1)) %>%
+  select(-gender, -ci_l, -ci_u) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_pregnancy2013.df %>% 
+  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
 
 
 
@@ -1204,6 +1264,10 @@ pontos_fxeta2_2013.df <- as_tibble(pontos_fxeta2_2013.df) %>%
   add_column(Classe = "Age(years)") %>%
   rename(Nome = fxetaria2, n2013 = N) %>%
   mutate(Nome = as.character(Nome))
+pontos_genero_2013.df <- as_tibble(pontos_genero_2013.df) %>%
+  add_column(Classe = "Gender") %>%
+  rename(Nome = gender, n2013 = N) %>%
+  mutate(Nome = as.character(Nome))
 pontos_race_2013.df <- as_tibble(pontos_race_2013.df) %>%
   add_column(Classe = "RaceSkinColor") %>%
   rename(Nome = RaceSkinColor, n2013 = N) %>%
@@ -1221,7 +1285,7 @@ pontos_hypert_2013.df <- as_tibble(pontos_hypert_2013.df) %>%
   rename(Nome = Hypertension, n2013 = N) %>%
   mutate(Nome = as.character(Nome))
   
-pontos_2013.df <- bind_rows(pontos_fxeta2_2013.df,pontos_race_2013.df,pontos_fxesc_2013.df,pontos_imc_2013.df,pontos_hypert_2013.df)
+pontos_2013.df <- bind_rows(pontos_genero_2013.df, pontos_fxeta2_2013.df, pontos_race_2013.df,pontos_fxesc_2013.df,pontos_imc_2013.df,pontos_hypert_2013.df)
 ```
 
 
@@ -1308,6 +1372,36 @@ pontos_reg_2013.df %>% arrange(desc(`(%)`)) %>%
   flextable() %>% autofit()
 ```
 
+Nunca tiveram diagnóstico de diabetes por Região
+
+```{r}
+pontos_reg_semdiag_2013 <- svyby(~one, ~regiao, subset(df, diabetes == 4 & !is.na(risco)), svytotal, vartype = "ci",  Ntotal = 100,multicore = TRUE)
+pontos_reg_semdiag_2013.df <- pontos_reg_semdiag_2013 %>% 
+  left_join(pop_regpns2013, by = "regiao") %>%
+  mutate(one = round(one,0),
+         `(%)`=round(one/popul*100,1), 
+         ci_l_perc = round(ci_l/popul*100,1), 
+         ci_u_perc = round(ci_u/popul*100,1)) %>%
+  select(-ci_l, -ci_u, -popul) %>%
+  mutate(`%95CI`=paste0(ci_l_perc,"-",ci_u_perc)) %>%
+  select(-ci_l_perc,-ci_u_perc) %>%
+  rename(N=one)
+
+pontos_reg_semdiag_2013.df <- pontos_reg_semdiag_2013.df %>% arrange(desc(`(%)`))
+pontos_reg_semdiag_2013.df <- pontos_reg_semdiag_2013.df %>%
+  rename(Region=regiao)
+pontos_reg_semdiag_2013.df <- pontos_reg_semdiag_2013.df %>%
+    mutate(Region = str_replace(Region, "Norte","North"),
+         Region = str_replace(Region, "Sul", "South"),
+         Region = str_replace(Region, "Sudeste","Southeast"),
+         Region = str_replace(Region, "Nordeste", "Northeast"),
+         Region = str_replace(Region, "Centro-Oeste","Central-West"))
+pontos_reg_semdiag_2013.df %>%
+#  adorn_totals() %>%
+  flextable() %>% autofit()
+```
+
+
 
 
 
@@ -1333,7 +1427,194 @@ pontos_2013.df <- bind_rows(pontos_2013.df, pontos_uf_2013.df,
 ```
 
 ```{r eval = FALSE}
-saveRDS(pontos_2013.df, file = "pontos_2013_20230505.rds", compress = TRUE)
+saveRDS(pontos_2013.df, file = "pontos_2013.rds", compress = TRUE)
+```
+
+
+## Exame há mais de 3 anos (diagnóstico negativo (3))
+
+```{r}
+pontos_3a <- as.data.frame(survey::svytable(~ risco, subset(df, diabetes != 1 & diabetes != 2 & diabetes != 4 & exames_glicemia_q029 == "5" ), addNA = TRUE))
+pontos_3a %>% 
+  mutate(`Perc. (%)` = round(Freq/sum(pontos_3a$Freq)*100,2)) %>%
+  mutate(Freq = round(Freq, 0)) %>%
+  bind_rows(tibble(risco="Total",Freq = round(sum(pontos_3a$Freq),0), `Perc. (%)` = 100)) %>%
+  flextable()
+```
+
+## Sem exame de diabetes (4)
+
+
+```{r}
+svytable(~exames_glicemia_q029 + diabetes, df, exclude = NULL, na.action = na.pass)
+```
+
+```{r}
+svytable(~q029 + q030, pns_design_srvyr, addNA = TRUE)
+```
+Acho que não vou poder "remover" os NAs; é preferível deixá-los para não distorcer as análises; coisa chata esse `survey`!
+
+```{r}
+svytable(~diabetes, df)
+```
+
+
+
+```{r}
+pontos_0 <- as.data.frame(survey::svytable(~risco, subset(df,  exames_glicemia_q029 == "6"), exclude = NULL, na.action = na.pass))
+pontos_0 %>% 
+  mutate(`Perc. (%)`= round(Freq/diabetes.df$Population[4]*100,2)) %>%
+  rename("População"=Freq) %>% 
+  flextable()
+```
+
+### Quantidade de pessoas que nunca fizeram exame de glicemia e estão em risco
+
+```{r}
+qtd_risco_sem_exame <- pontos_0[pontos_0$risco == 1 & !is.na(pontos_0$risco), "Freq"]
+qtd_risco_sem_exame
+```
+
+Validação - pessoas que nunca fizeram exame de glicemia
+
+```{r}
+sum(pontos_0$Freq)
+```
+
+
+## Por Faixa Etária 2, que nunca fizeram exame
+
+```{r}
+pontos_0_fxetaria <- as.data.frame(survey::svytable(~ risco + fxetaria2, subset(df, exames_glicemia_q029 == "6" & !is.na(risco)), addNA = TRUE))
+# pontos_0_fxetaria
+```
+
+```{r}
+sum(pontos_0_fxetaria$Freq)
+```
+
+Por faixa etária, nunca fizeram exame, com risco aumentado
+
+```{r}
+gp0_fxetaria = pontos_0_fxetaria %>% 
+   filter(risco == 1 & !is.na(risco)) %>% 
+   group_by(fxetaria2) %>% summarise(freq = sum(Freq))
+gp0_fxetaria$freq = round(gp0_fxetaria$freq, 0)
+gp0_fxetaria %>% flextable()
+```
+
+```{r}
+sum(gp0_fxetaria$freq)
+```
+
+
+Por estado, nunca fizeram exame
+
+```{r}
+pontos_0_est <- as.data.frame(survey::svytable(~ risco + uf, subset(df, diabetes!="1" & exames_glicemia_q029 == "6" & !is.na(risco)), exclude = NULL, na.action = na.pass))
+# pontos_0_est
+```
+
+
+```{r}
+risco_0_est = pontos_0_est %>% 
+   filter(risco==1 & !is.na(risco)) %>%
+   mutate(Freq = round(Freq), perc = round(Freq/qtd_risco_sem_exame*100,1))
+#risco_0_est$Freq = round(risco_0_est$Freq)
+risco_0_est %>% select(-risco) %>% arrange(desc(Freq)) %>% flextable()
+```
+
+```{r}
+sum(pontos_0_est[pontos_0_est$risco == 1, "Freq"], na.rm = T)
+```
+
+## Por Região do Brasil
+
+Por estado, nunca fizeram exame
+
+```{r}
+pontos_0_regiao <- as.data.frame(survey::svytable(~ risco + regiao, subset(df, diabetes!="1" & exames_glicemia_q029 == "6" & !is.na(risco)), exclude = NULL, na.action = na.pass))
+
+```
+
+
+```{r}
+risco_0_regiao = pontos_0_regiao %>% 
+   filter(risco==1 & !is.na(risco)) %>%
+   mutate(Freq = round(Freq), perc = round(Freq/qtd_risco_sem_exame*100,1))
+#risco_0_est$Freq = round(risco_0_est$Freq)
+risco_0_regiao %>% select(-risco) %>% arrange(desc(Freq)) %>% flextable()
+```
+
+
+
+## Olhar as variáveis relacionadas a hábitos saudáveis e analisar para aqueles com exame sem diagnóstico (3) e sem exame (4)
+
+* Consumo de Frutas (p018)
+* Refrigerante ou Suco de caixinha (p020)
+* Doces e Consumo de açúcar (p025)
+* Substitui refeição por lanches (p026)
+
+"frutas_p018",  "doces_p025", "lanches_p026"
+
+
+## Consumo de Frutas (com diabetes gestacional (2), exame sem diagnóstico (3) e sem exame(4))
+
+
+```{r}
+pontos_frutas <- as.data.frame(survey::svytable(~ risco + frutas_p018, subset(df, diabetes != 1 & !is.na(risco)), addNA = TRUE))
+# pontos_frutas
+```
+
+
+
+### Risco de diabetes por consumo de frutas para população com exame sem diagnóstico (3) ou sem exame (4)
+
+
+Consumo de Frutas (p018):
+
+* Em quantos dias da semana o(a) Sr(a) costuma comer frutas? 
+  + (0 = Nunca ou menos de uma vez por semana)
+
+```{r}
+risco_frutas = group_by(pontos_frutas[pontos_frutas$risco==1, ], frutas_p018) %>% summarise(freq = sum(Freq, na.rm = T), perc = round((freq/qtd_risco)*100,2))
+risco_frutas$freq = round(risco_frutas$freq)
+risco_frutas %>%
+  filter(!is.na(frutas_p018), frutas_p018 != "Nenhum")  %>% adorn_totals() %>%
+  flextable()
+```
+
+
+Parece haver uma contradição nos resultados: quanto mais frutas come, maior o percentual de pessoas em risco de diabetes! 
+
+
+## Consumo de Refrigerantes e Sucos Industrializados (com diabetes gestacional (2), exame sem diagnóstico (3) e sem exame(4))
+
+
+"refri_sucos_p020",
+
+```{r}
+pontos_refri <- as.data.frame(survey::svytable(~ risco + refri_sucos_p020, subset(df, diabetes != 1 & !is.na(risco)), addNA = TRUE))
+# pontos_refri
+```
+
+
+
+### Risco de diabetes por consumo de refrigerantes ou sucos industrializados para população com exame sem diagnóstico (3) ou sem exame (4)
+
+
+Refrigerante ou Suco de caixinha (p020) - 
+
+*  Em quantos dias da semana o(a) Sr(a) costuma tomar refrigerante (ou suco artificial)? 
+  + (0 = Nunca ou menos de uma vez por semana)
+
+
+```{r}
+risco_refri = group_by(pontos_refri[pontos_refri$risco==1, ], refri_sucos_p020) %>% summarise(freq = sum(Freq, na.rm = T), perc = round((freq/qtd_risco)*100,2))
+risco_refri$freq = round(risco_refri$freq)
+risco_refri %>%
+  filter(!is.na(refri_sucos_p020), refri_sucos_p020 != "Nenhum")  %>% adorn_totals() %>%
+  flextable()
 ```
 
 
